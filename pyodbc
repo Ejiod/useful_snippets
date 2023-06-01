@@ -1,0 +1,52 @@
+import pyodbc
+import pandas as pd
+
+def create_table_and_insert_data(df, table_name, connection):
+    # Start the CREATE TABLE statement
+    sql = f"CREATE TABLE {table_name} ("
+
+    # Add a column definition for each column in the DataFrame
+    for col in df.columns:
+        # Infer the Teradata data type from the DataFrame's data type
+        if df[col].dtype == 'int64':
+            teradata_type = 'INTEGER'
+        elif df[col].dtype == 'float64':
+            teradata_type = 'FLOAT'
+        elif df[col].dtype == 'bool':
+            teradata_type = 'BYTEINT'
+        elif df[col].dtype == 'datetime64[ns]':
+            teradata_type = 'TIMESTAMP'
+        else:
+            teradata_type = 'VARCHAR(255)'
+
+        # Add the column definition to the SQL statement
+        sql += f"\n    {col} {teradata_type},"
+
+    # Remove the trailing comma and close the parenthesis
+    sql = sql.rstrip(',') + "\n)"
+
+    # Execute the CREATE TABLE statement
+    connection.execute(sql)
+    connection.commit()
+
+    # Now, perform the bulk insert
+    params = ','.join(['?'] * len(df.columns))
+    for index, row in df.iterrows():
+        connection.execute(f"INSERT INTO {table_name} VALUES ({params})", tuple(row))
+
+    # Commit the transaction
+    connection.commit()
+
+# Connect to the source server and read the data
+source_connection = pyodbc.connect('DSN=YourDSN;UID=YourUsername;PWD=YourPassword')
+df1 = pd.read_sql("SELECT * FROM Schema1.Table1", source_connection)
+df2 = pd.read_sql("SELECT * FROM Schema2.Table2", source_connection)
+df3 = pd.read_sql("SELECT * FROM Schema3.Table3", source_connection)
+
+# Connect to the target server
+target_connection = pyodbc.connect('DSN=YourDSN;UID=YourUsername;PWD=YourPassword')
+
+# Create a table for each DataFrame and insert the data
+create_table_and_insert_data(df1, 'TargetTable1', target_connection)
+create_table_and_insert_data(df2, 'TargetTable2', target_connection)
+create_table_and_insert_data(df3, 'TargetTable3', target_connection)

@@ -1,0 +1,78 @@
+import pyodbc
+import pandas as pd
+from datetime import datetime
+
+# Initialize an empty DataFrame for logging
+log_df = pd.DataFrame(columns=['timestamp', 'event'])
+
+def log_event(event):
+    global log_df
+    log_df = log_df.append({
+        'timestamp': datetime.now(),
+        'event': event
+    }, ignore_index=True)
+
+def create_table_and_insert_data(df, table_name, connection):
+    log_event(f'Starting creation of table {table_name}')
+    # [... rest of your code ...]
+    log_event(f'Table {table_name} created and data inserted')
+
+def table_exists(table_name, connection):
+    try:
+        sql = f"SELECT * FROM {table_name} WHERE 1=0"
+        connection.execute(sql)
+        log_event(f'Table {table_name} exists')
+        return True
+    except:
+        log_event(f'Table {table_name} does not exist')
+        return False
+
+def view_exists(view_name, connection):
+    try:
+        sql = f"SELECT * FROM {view_name} WHERE 1=0"
+        connection.execute(sql)
+        log_event(f'View {view_name} exists')
+        return True
+    except:
+        log_event(f'View {view_name} does not exist')
+        return False
+
+def create_view(source_table, source_connection):
+    log_event(f'Starting creation of view for table {source_table}')
+    view_name = f"{source_table}_view"
+    sql = f"CREATE VIEW {view_name} AS SELECT * FROM {source_table}"
+    source_connection.execute(sql)
+    source_connection.commit()
+    log_event(f'View for table {source_table} created')
+
+def delete_table(table_name, source_connection):
+    log_event(f'Starting deletion of table {table_name}')
+    sql = f"DROP TABLE {table_name}"
+    source_connection.execute(sql)
+    source_connection.commit()
+    log_event(f'Table {table_name} deleted')
+
+# Define the source and target table names
+migration_df = pd.DataFrame({
+    'source_db': ['TD500', 'TD500', 'TD500'],
+    'target_db': ['TD800', 'TD800', 'TD800'],
+    'source_table': ['tableA', 'tableB', 'tableC'],
+    'target_table': ['tableA', 'tableB', 'tableC']
+})
+
+# Connect to the source and target servers
+source_connection = pyodbc.connect('DSN=YourSourceDSN;UID=YourUsername;PWD=YourPassword')
+target_connection = pyodbc.connect('DSN=YourTargetDSN;UID=YourUsername;PWD=YourPassword')
+
+# Migrate each table
+for _, row in migration_df.iterrows():
+    log_event(f'Starting migration for source table {row["source_table"]}')
+    df = pd.read_sql(f"SELECT * FROM {row['source_table']}", source_connection)
+    create_table_and_insert_data(df, row['target_table'], target_connection)
+    create_view(row['source_table'], source_connection)
+    if table_exists(row['target_table'], target_connection) and view_exists(f"{row['source_table']}_view", source_connection):
+        delete_table(row['source_table'], source_connection)
+    log_event(f'Migration for source table {row["source_table"]} completed')
+
+# Save the log DataFrame to a CSV file after all operations are done
+log_df.to_csv('migration_log.csv', index=False)

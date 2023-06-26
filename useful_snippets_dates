@@ -1,12 +1,14 @@
 SELECT
   CASE
+    WHEN date_column IS NULL OR UPPER(date_column) = 'N/A' OR UPPER(date_column) = 'NOT SENT' THEN 
+      NULL -- Return NULL when the entry is 'Not Sent', 'N/A', or NULL
     WHEN POSITION('/' IN date_column) > 0 THEN -- Handles dates like '20/1/10/2021'
-      TO_DATE(date_column, 'DD/MM/YY/YYYY')
+      (CAST((SUBSTRING(date_column FROM 1 FOR 2) || '-' || SUBSTRING(date_column FROM 4 FOR 2) || '-' || SUBSTRING(date_column FROM 7 FOR 4)) AS DATE FORMAT 'DD-MM-YYYY')) (FORMAT 'YYYY-MM-DD')(CHAR(10))
     WHEN POSITION(' ' IN date_column) = 3 THEN -- Handles dates like '13 December 2015'
-      TO_DATE(date_column, 'DD Month YYYY')
+      (CAST(date_column AS DATE FORMAT 'DD Month YYYY')) (FORMAT 'YYYY-MM-DD')(CHAR(10))
     WHEN POSITION(',' IN date_column) > 0 THEN -- Handles dates like 'Monday, October 15, 2015'
-      TO_DATE(SUBSTR(date_column, POSITION(',' IN date_column)+2), 'Month DD, YYYY')
+      (CAST((SUBSTR(date_column, POSITION(',' IN date_column)+2)) AS DATE FORMAT 'Month DD, YYYY')) (FORMAT 'YYYY-MM-DD')(CHAR(10))
     ELSE
-      date_column -- if not recognizable date, return original value
+      NULL -- if not recognizable date, return NULL
   END AS standardized_date
-FROM your_table
+FROM xx_table

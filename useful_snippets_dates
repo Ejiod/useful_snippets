@@ -1,0 +1,11 @@
+SELECT 
+  CASE 
+    WHEN CHAR_LENGTH(date_column) = 13 THEN 
+      TO_CHAR(TO_DATE(SUBSTRING(date_column FROM 1 FOR 8),'MM/DD/YY'), 'MM/DD/YYYY')
+    WHEN date_column = 'N/a' OR date_column IS NULL THEN 
+      NULL
+    ELSE 
+      TO_CHAR(TO_DATE(date_column, 'DD-Mon-YY'), 'MM/DD/YYYY')
+  END AS standardized_date
+FROM 
+  your_table_name

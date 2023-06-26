@@ -8,4 +8,4 @@ SELECT
       TO_CHAR(TO_DATE(date_column, 'DD-Mon-YY'), 'MM/DD/YYYY')
   END AS standardized_date
 FROM 
-  your_table_name
+  xx_table

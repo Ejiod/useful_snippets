@@ -1,11 +1,12 @@
-SELECT 
-  CASE 
-    WHEN CHAR_LENGTH(date_column) = 13 THEN 
-      TO_CHAR(TO_DATE(SUBSTRING(date_column FROM 1 FOR 8),'MM/DD/YY'), 'MM/DD/YYYY')
-    WHEN date_column = 'N/a' OR date_column IS NULL THEN 
-      NULL
-    ELSE 
-      TO_CHAR(TO_DATE(date_column, 'DD-Mon-YY'), 'MM/DD/YYYY')
+SELECT
+  CASE
+    WHEN POSITION('/' IN date_column) > 0 THEN -- Handles dates like '20/1/10/2021'
+      TO_DATE(date_column, 'DD/MM/YY/YYYY')
+    WHEN POSITION(' ' IN date_column) = 3 THEN -- Handles dates like '13 December 2015'
+      TO_DATE(date_column, 'DD Month YYYY')
+    WHEN POSITION(',' IN date_column) > 0 THEN -- Handles dates like 'Monday, October 15, 2015'
+      TO_DATE(SUBSTR(date_column, POSITION(',' IN date_column)+2), 'Month DD, YYYY')
+    ELSE
+      date_column -- if not recognizable date, return original value
   END AS standardized_date
-FROM 
-  xx_table
+FROM your_table

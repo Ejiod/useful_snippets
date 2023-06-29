@@ -1,14 +1,14 @@
-SELECT
-  CASE
-    WHEN date_column IS NULL OR UPPER(date_column) = 'N/A' OR UPPER(date_column) = 'NOT SENT' THEN 
-      NULL -- Return NULL when the entry is 'Not Sent', 'N/A', or NULL
-    WHEN POSITION('/' IN date_column) > 0 THEN -- Handles dates like '20/1/10/2021'
-      (CAST((SUBSTRING(date_column FROM 1 FOR 2) || '-' || SUBSTRING(date_column FROM 4 FOR 2) || '-' || SUBSTRING(date_column FROM 7 FOR 4)) AS DATE FORMAT 'DD-MM-YYYY')) (FORMAT 'YYYY-MM-DD')(CHAR(10))
-    WHEN POSITION(' ' IN date_column) = 3 THEN -- Handles dates like '13 December 2015'
-      (CAST(date_column AS DATE FORMAT 'DD Month YYYY')) (FORMAT 'YYYY-MM-DD')(CHAR(10))
-    WHEN POSITION(',' IN date_column) > 0 THEN -- Handles dates like 'Monday, October 15, 2015'
-      (CAST((SUBSTR(date_column, POSITION(',' IN date_column)+2)) AS DATE FORMAT 'Month DD, YYYY')) (FORMAT 'YYYY-MM-DD')(CHAR(10))
-    ELSE
-      NULL -- if not recognizable date, return NULL
-  END AS standardized_date
-FROM xx_table
+SELECT 
+    CASE 
+        WHEN REGEXP_SIMILAR(date, '[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}', 'i') = 1 THEN
+            CAST((SUBSTRING(date FROM 1 FOR POSITION('/' IN date) - 1) || '-' || 
+                  SUBSTRING(date FROM POSITION('/' IN date) + 1 FOR POSITION('/' IN SUBSTRING(date FROM POSITION('/' IN date) + 1)) - 1) || '-' || 
+                  SUBSTRING(date FROM POSITION('/' IN date) + POSITION('/' IN SUBSTRING(date FROM POSITION('/' IN date) + 1)) + 1) AS DATE FORMAT 'DD-MM-YYYY')
+        WHEN REGEXP_SIMILAR(date, '[0-9]{1,2} [a-z]{3,9} [0-9]{4}', 'i') = 1 THEN
+            TO_DATE(date, 'DD-MON-YYYY')
+        WHEN REGEXP_SIMILAR(date, '[a-z]{6,9}, [a-z]{3,9} [0-9]{1,2}, [0-9]{4}', 'i') = 1 THEN
+            TO_DATE(SUBSTRING(date FROM POSITION(', ' IN date) + 2), 'MON DD, YYYY')
+        ELSE
+            NULL
+    END AS date
+FROM your_table

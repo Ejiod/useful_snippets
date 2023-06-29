@@ -1,14 +1,20 @@
-SELECT 
-    CASE 
-        WHEN REGEXP_SIMILAR(date, '[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}', 'i') = 1 THEN
-            CAST((SUBSTRING(date FROM 1 FOR POSITION('/' IN date) - 1) || '-' || 
-                  SUBSTRING(date FROM POSITION('/' IN date) + 1 FOR POSITION('/' IN SUBSTRING(date FROM POSITION('/' IN date) + 1)) - 1) || '-' || 
-                  SUBSTRING(date FROM POSITION('/' IN date) + POSITION('/' IN SUBSTRING(date FROM POSITION('/' IN date) + 1)) + 1) AS DATE FORMAT 'DD-MM-YYYY')
-        WHEN REGEXP_SIMILAR(date, '[0-9]{1,2} [a-z]{3,9} [0-9]{4}', 'i') = 1 THEN
-            TO_DATE(date, 'DD-MON-YYYY')
-        WHEN REGEXP_SIMILAR(date, '[a-z]{6,9}, [a-z]{3,9} [0-9]{1,2}, [0-9]{4}', 'i') = 1 THEN
-            TO_DATE(SUBSTRING(date FROM POSITION(', ' IN date) + 2), 'MON DD, YYYY')
-        ELSE
-            NULL
-    END AS date
-FROM your_table
+import pandas as pd
+
+# Let's simulate your data
+data = {
+    'date': ['20/10/2021', '20/11/2022', '20/1/10/2023', 'N/a', 'Not Sent', '13 December 2015', 'Monday, October 15, 2015']
+}
+
+df = pd.DataFrame(data)
+
+# Replacing non-date values with NaN
+df['date'] = df['date'].replace(['N/a', 'Not Sent'], pd.NA)
+
+# Function to convert various date formats to standard format
+def convert_date(date):
+    try:
+        return pd.to_datetime(date).strftime('%d/%m/%Y')
+    except:
+        return pd.NA
+
+df['date'] = df['date'].apply(convert_date)

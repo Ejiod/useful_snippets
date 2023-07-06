@@ -76,3 +76,87 @@ for _, row in migration_df.iterrows():
 
 # Save the log DataFrame to a CSV file after all operations are done
 log_df.to_csv('migration_log.csv', index=False)
+
+
+
+
+
+--------UPDATE
+
+import pyodbc
+import pandas as pd
+
+def create_table_and_insert_data(df, table_name, connection):
+    # Start the CREATE MULTISET TABLE statement
+    sql = f"CREATE MULTISET TABLE {table_name} ("
+    # Add a column definition for each column in the DataFrame
+    for col in df.columns:
+        # Infer the Teradata data type from the DataFrame's data type
+        if df[col].dtype == 'int64':
+            teradata_type = 'INTEGER'
+        elif df[col].dtype == 'float64':
+            teradata_type = 'FLOAT'
+        elif df[col].dtype == 'bool':
+            teradata_type = 'BYTEINT'
+        elif df[col].dtype == 'datetime64[ns]':
+            teradata_type = 'TIMESTAMP'
+        else:
+            teradata_type = 'VARCHAR(255)'
+
+        # Add the column definition to the SQL statement
+        sql += f"\n    {col} {teradata_type},"
+
+    # Remove the trailing comma and close the parenthesis
+    sql = sql.rstrip(',') + "\n)"
+    
+    # Execute the CREATE TABLE statement
+    with connection.cursor() as cur:
+        cur.execute(sql)
+    
+    # Now, perform the bulk insert
+    params = ','.join(['?'] * len(df.columns))
+    for index, row in df.iterrows():
+        with connection.cursor() as cur:
+            cur.execute(f"INSERT INTO {table_name} VALUES ({params})", tuple(row))
+
+def create_view(source_table, source_connection):
+    view_name = f"{source_table}_view"
+    sql = f"CREATE VIEW {view_name} AS SELECT * FROM {source_table}"
+    
+    with source_connection.cursor() as cur:
+        cur.execute(sql)
+        source_connection.commit()
+
+def delete_table(table_name, source_connection):
+    sql = f"DROP TABLE {table_name}"
+    
+    with source_connection.cursor() as cur:
+        cur.execute(sql)
+        source_connection.commit()
+
+# Define the source and target table names
+migration_df = pd.DataFrame({
+    'source_db': ['TD500', 'TD500', 'TD500', 'TD500'],
+    'source_table': ['XPA.Table1', 'XPA.Table2', 'XPA.Table3', 'XPA.Table4'],
+    'target_db': ['TD800', 'TD800', 'TD800', 'TD800'],
+    'target_table': ['DXV.Table1', 'DXV.Table2', 'DXV.Table3', 'DXV.Table4']
+})
+
+# Connect to the source and target servers
+source_connection = pyodbc.connect('DSN=YourSourceDSN;UID=YourUsername;PWD=YourPassword')
+target_connection = pyodbc.connect('DSN=YourTargetDSN;UID=YourUsername;PWD=YourPassword')
+
+# Migrate each table and create views
+for _, row in migration_df.iterrows():
+    # Read the data from the source table
+    df = pd.read_sql(f"SELECT * FROM {row['source_table']}", source_connection)
+    
+    # Create the target table and insert the data
+    create_table_and_insert_data(df, row['target_table'], target_connection)
+    
+    # Create the view in the source database
+    create_view(row['source_table'], source_connection)
+    
+    # Check if the target table and view exist and delete the source table
+    if table_exists(row['target_table'], target_connection) and view_exists(f"{row['source_table']}_view", source_connection):
+        delete_table(row['source_table'], source_connection)

@@ -292,3 +292,53 @@ for _, row in migration_df.iterrows():
 print("Table migration completed.")
 
 
+
+
+
+
+bulk3-----
+
+
+import pandas as pd
+import pyodbc
+
+def create_table_and_insert_data(source_table, target_table, connection):
+    # Start the CREATE TABLE statement
+    sql = f"CREATE TABLE {target_table} AS (SELECT * FROM {source_table})"
+
+    # Execute the CREATE TABLE statement
+    with connection.cursor() as cur:
+        cur.execute(sql)
+
+def bulk_insert(table_name, df, connection):
+    # Now, perform the bulk insert
+    params = ','.join(['?'] * len(df.columns))
+    values = [tuple(row) for _, row in df.iterrows()]
+
+    with connection.cursor() as cur:
+        cur.executemany(f"INSERT INTO {table_name} VALUES ({params})", values)
+
+# Define the source and target table names
+migration_df = pd.DataFrame({
+    'source_db': ['TD800', 'TD800', 'TD800', 'TD800'],
+    'source_table': ['DXV.Table1', 'DXV.Table2', 'DXV.Table3', 'DXV.Table4'],
+    'target_db': ['TD700', 'TD700', 'TD700', 'TD700'],
+    'target_table': ['XBA.GHA_Table1', 'XBA.GHA_Table2', 'XBA.GHA_Table3', 'XBA.GHA_Table4']
+})
+
+# Connect to the source and target databases
+source_connection = pyodbc.connect('DSN=YourSourceDSN;UID=YourUsername;PWD=YourPassword')
+target_connection = pyodbc.connect('DSN=YourTargetDSN;UID=YourUsername;PWD=YourPassword')
+
+# Migrate each table
+for _, row in migration_df.iterrows():
+    # Create the target table
+    create_table_and_insert_data(row['source_table'], row['target_table'], target_connection)
+
+    # Read the data from the source table
+    df = pd.read_sql(f"SELECT * FROM {row['source_table']}", source_connection)
+
+    # Perform the bulk insert
+    bulk_insert(row['target_table'], df, target_connection)
+
+

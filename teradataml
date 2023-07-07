@@ -1,0 +1,22 @@
+import teradataml as tdml
+
+
+# Connect to database_name_1 with LDAP authentication
+tdml.create_context(host=db1_host, username=db1_username, password=db1_password, database=db1_database,
+                    method='ldap', ldap_host=ldap_host, ldap_username=ldap_username, ldap_password=ldap_password)
+
+# Connect to database_name_2 with LDAP authentication
+tdml.create_context(host=db2_host, username=db2_username, password=db2_password, database=db2_database,
+                    method='ldap', ldap_host=ldap_host, ldap_username=ldap_username, ldap_password=ldap_password)
+
+# Iterate over table mappings and copy tables
+for mapping in table_mappings:
+    # Read the source table
+    source_table = tdml.DataFrame.from_table(f"{mapping['database_name_1']}.{mapping['source_table']}")
+
+    # Copy the source table to the target table
+    tdml.copy_to_sql(source_table, f"{mapping['database_name_2']}.{mapping['target_table']}", if_exists="replace")
+
+# Close the connections
+tdml.remove_context()
+

@@ -48,3 +48,27 @@ for i, df in enumerate(pandas_data_frames):
 
 # Close the target connection
 tdml.remove_context(target_context)
+
+
+
+
+
+-----vERSION 2
+pandas_data_frames = []
+for table_name in table_list:
+    table_name = ast.literal_eval(table_name)
+    df = tdml.DataFrame.from_table(table_name)
+    pandas_data_frames.append(df.to_pandas())
+
+# Close the source connection
+tdml.remove_context(source_context)
+
+# Establish connection to the target database with LDAP authentication
+target_context = tdml.create_context(host=target_host, username=target_username, password=target_password,
+                                    database=target_database, method='ldap', ldap_host=ldap_host,
+                                    ldap_username=ldap_username, ldap_password=ldap_password)
+
+# Iterate over the Pandas DataFrames and copy to target table
+for i, df in enumerate(pandas_data_frames):
+    table_name = table_list[i]
+    tdml.copy_to_sql(tdml.DataFrame(df), table_name, if_exists="replace")

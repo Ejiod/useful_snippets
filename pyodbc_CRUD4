@@ -160,3 +160,25 @@ for _, row in migration_df.iterrows():
     # Check if the target table and view exist and delete the source table
     if table_exists(row['target_table'], target_connection) and view_exists(f"{row['source_table']}_view", source_connection):
         delete_table(row['source_table'], source_connection)
+
+
+---VIEW
+import pyodbc
+
+def create_view(source_table, source_connection):
+    target_view = source_table.split('.')[-1] + '_view'
+    view_name = f"PBA_RCB.{target_view}"
+    sql = f"CREATE VIEW {view_name} AS (SELECT * FROM {source_table}@FS_TGB)"
+    with source_connection.cursor() as cur:
+        cur.execute(sql)
+        source_connection.commit()
+
+# Define the source table names
+source_tables = ['GDB_VCA.Table1', 'GDB_VCA.Table2', 'GDB_VCA.Table3', ...]  # List all source tables here
+
+# Connect to the source server
+source_connection = pyodbc.connect('DSN=YourSourceDSN;UID=YourUsername;PWD=YourPassword')
+
+# Create views based on the source tables
+for source_table in source_tables:
+    create_view(source_table, source_connection)

@@ -20,3 +20,22 @@ for mapping in table_mappings:
 # Close the connections
 tdml.remove_context()
 
+
+
+
+
+# Read the tables and create DataFrames
+data_frames = []
+for table_name in table_list:
+    df = tdml.DataFrame.from_table(table_name)
+    data_frames.append(df)
+
+# Close the Teradata connection
+tdml.remove_context()
+
+# Access the DataFrames
+for i, table_name in enumerate(table_list):
+    print(f"DataFrame for {table_name}:")
+    print(data_frames[i])
+    print()
+

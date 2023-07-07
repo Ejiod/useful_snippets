@@ -86,3 +86,16 @@ for table_name in table_list:
         df = df.reset_index(level=level)
     
     pandas_data_frames.append(df)
+
+
+
+pandas_data_frames = []
+for table_name in table_list:
+    df = tdml.DataFrame.from_table(table_name)
+    df = df.to_pandas()
+    
+    # Reset index for each level of the multi-index
+    for level in range(df.columns.nlevels):
+        df = df.reset_index(level=level)
+    
+    pandas_data_frames.append(df)

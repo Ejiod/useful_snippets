@@ -298,7 +298,6 @@ print("Table migration completed.")
 
 bulk3-----
 
-
 import pandas as pd
 import pyodbc
 
@@ -307,16 +306,16 @@ def create_table_and_insert_data(source_table, target_table, connection):
     sql = f"CREATE TABLE {target_table} AS (SELECT * FROM {source_table})"
 
     # Execute the CREATE TABLE statement
-    with connection.cursor() as cur:
-        cur.execute(sql)
+    with connection.cursor() as cursor:
+        cursor.execute(sql)
 
 def bulk_insert(table_name, df, connection):
     # Now, perform the bulk insert
     params = ','.join(['?'] * len(df.columns))
     values = [tuple(row) for _, row in df.iterrows()]
 
-    with connection.cursor() as cur:
-        cur.executemany(f"INSERT INTO {table_name} VALUES ({params})", values)
+    with connection.cursor() as cursor:
+        cursor.executemany(f"INSERT INTO {table_name} VALUES ({params})", values)
 
 # Define the source and target table names
 migration_df = pd.DataFrame({
@@ -340,5 +339,3 @@ for _, row in migration_df.iterrows():
 
     # Perform the bulk insert
     bulk_insert(row['target_table'], df, target_connection)
-
-

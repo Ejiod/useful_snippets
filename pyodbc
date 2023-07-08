@@ -28,3 +28,43 @@ for table_name, df in dataframes.items():
 
 # Close the Teradata connection
 teradataml.remove_context()
+
+
+
+
+
+
+---PYDOC----TDML
+
+
+import pandas as pd
+import pyodbc
+import teradataml
+
+# Establish connection to the source database
+source_connection_string = "Driver={SQL Server};Server=<server_name>;Database=<database_name>;Uid=<username>;Pwd=<password>;"
+source_connection = pyodbc.connect(source_connection_string)
+
+# Read tables and save as dataframes
+table_names = ["table1", "table2", "table3", "table4", "table5"]
+dataframes = {}
+
+for table_name in table_names:
+    query = f"SELECT * FROM {table_name}"
+    df = pd.read_sql(query, source_connection)
+    dataframes[table_name] = df
+
+# Close the source connection
+source_connection.close()
+
+# Establish connection to Teradata
+teradata_connection_string = "<teradata_connection_string>"
+teradataml.create_context(host="<teradata_host>", username="<username>", password="<password>", database="<database_name>")
+
+# Copy data to Teradata using new connection
+for table_name, df in dataframes.items():
+    teradataml.copy_to(data_frame=df, table_name=table_name, index=False)
+
+# Close the Teradata connection
+teradataml.remove_context()
+

@@ -95,3 +95,71 @@ for table_name in table_list:
     selected_df = df[column_names]  # Select all columns explicitly
     pandas_data_frames.append(selected_df.to_pandas())
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-----PYODBC
+
+
+import pyodbc
+import pandas as pd
+from teradataml import create_context, copy_to_sql, DataFrame
+
+# Replace these with your source database details
+source_driver = "{your_driver}"
+source_server = "your_server"
+source_database = "your_database"
+source_username = "your_username"
+source_password = "your_password"
+
+# Replace these with your target Teradata Vantage details
+target_host = "target_host"
+target_username = "target_username"
+target_password = "target_password"
+
+# Create a new connection to the source database
+source_conn = pyodbc.connect(driver=source_driver, server=source_server, database=source_database, uid=source_username, pwd=source_password)
+
+# A dictionary to hold the DataFrames for each source table
+source_dfs = {}
+
+# Iterate over each row in the DataFrame
+for index, row in tables_df.iterrows():
+    source_db = row['database_name_1']
+    source_table = row['source_table']
+
+    # Read the source table into a DataFrame and store it in the dictionary
+    source_dfs[source_table] = pd.read_sql(f"SELECT * FROM {source_db}.{source_table}", source_conn)
+
+# Close the source connection
+source_conn.close()
+
+# Create a new context for the target Teradata Vantage
+create_context(host=target_host, username=target_username, password=target_password)
+
+# Copy each DataFrame to the corresponding target table
+for index, row in tables_df.iterrows():
+    source_table = row['source_table']
+    target_db = row['database_name_2']
+    target_table = row['target_table'] if pd.notna(row['target_table']) else source_table
+
+    # Get the DataFrame for this source table
+    source_df = source_dfs[source_table]
+
+    # Copy the DataFrame to the target table
+    copy_to_sql(df=source_df, table_name=f"{target_db}.{target_table}", if_exists="replace")

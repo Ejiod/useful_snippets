@@ -163,3 +163,37 @@ for index, row in tables_df.iterrows():
 
     # Copy the DataFrame to the target table
     copy_to_sql(df=source_df, table_name=f"{target_db}.{target_table}", if_exists="replace")
+
+
+
+GET COUNT
+
+from teradataml import create_context, sql_to_data_frame
+import pandas as pd
+
+# Replace these with your Teradata Vantage details
+host = "your_host"
+username = "your_username"
+password = "your_password"
+
+# Create a new context for the Teradata Vantage
+create_context(host=host, username=username, password=password)
+
+# List of tables
+tables = ['table1', 'table2', 'table3']  # replace with your table names
+
+# Initialize an empty DataFrame to store the results
+counts_df = pd.DataFrame(columns=['table', 'count'])
+
+# Iterate over each table
+for table in tables:
+    # Run a SELECT COUNT(*) query
+    query = f"SELECT COUNT(*) AS count FROM {table}"
+    count_df = sql_to_data_frame(query)
+
+    # Append the table name and count to the results DataFrame
+    counts_df = counts_df.append({'table': table, 'count': count_df['count'][0]}, ignore_index=True)
+
+counts_df
+
+

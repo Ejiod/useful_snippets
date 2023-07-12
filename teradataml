@@ -168,34 +168,17 @@ for index, row in tables_df.iterrows():
 
 GET COUNT
 
-from teradataml import create_context, sql_to_data_frame
-import pandas as pd
 
-# Replace these with your Teradata Vantage details
-host = "your_host"
-username = "your_username"
-password = "your_password"
-
-# Create a new context for the Teradata Vantage
-create_context(host=host, username=username, password=password)
-
-# List of tables
-tables = ['table1', 'table2', 'table3']  # replace with your table names
-
-# Initialize an empty DataFrame to store the results
-counts_df = pd.DataFrame(columns=['table', 'count'])
-
-# Iterate over each table
 for table in tables:
     # Run a SELECT COUNT(*) query
     query = f"SELECT COUNT(*) AS count FROM {table}"
-    count_df = sql_to_data_frame(query)
+    count_df = pd.read_sql(query, conn)
 
-    # Append the table name and count to the results DataFrame
-    counts_df = counts_df.append({'table': table, 'count': count_df['count'][0]}, ignore_index=True)
+    # Create a DataFrame from the table name and count
+    row_df = pd.DataFrame([{'table': table, 'count': count_df['count'][0]}])
 
-counts_df
-
+    # Append the row DataFrame to the results DataFrame
+    counts_df = counts_df.append(row_df, ignore_index=True)
 
 
 

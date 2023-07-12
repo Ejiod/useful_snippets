@@ -213,3 +213,19 @@ for chunk in pd.read_sql('SELECT * FROM large_table', conn, chunksize=chunksize)
 # Concatenate all chunks into one DataFrame
 df = pd.concat(chunks, axis=0)
 
+
+
+--VIEW 
+for index, row in tables_df.iterrows():
+    source_db = row['database_name_1']
+    source_table = row['source_table']
+
+    # Define the view name (using the table name for simplicity)
+    view_name = f"{source_table}_view"
+
+    # Define the view query
+    view_query = f"SELECT * FROM {source_db}.{source_table}"
+
+    # Execute the query to create the view
+    source_conn.execute(f'CREATE VIEW {view_name} AS {view_query}')
+

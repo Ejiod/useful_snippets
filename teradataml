@@ -180,6 +180,25 @@ tables = ["A", "B", "C"]
 print(count_rows(tables))
 
 
+import pandas as pd
+from teradataml import DataFrame
+
+def count_rows_and_columns(tables):
+    counts = {}
+    for table in tables:
+        df = DataFrame.from_table(table_name=table)
+        row_count = df.shape[0]
+        column_count = len(df.columns)
+        counts[table] = {'Row_Count': row_count, 'Column_Count': column_count}
+
+    # convert dictionary to DataFrame
+    df_counts = pd.DataFrame.from_dict(counts, orient='index')
+
+    return df_counts
+
+
+
+
 ----CHUNK SIZE
 
 

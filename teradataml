@@ -229,3 +229,37 @@ for index, row in tables_df.iterrows():
     # Execute the query to create the view
     source_conn.execute(f'CREATE VIEW {view_name} AS {view_query}')
 
+
+
+
+
+S
+1. **Prepare a list of tables to be archived.**
+    - The list should be in a format that can be read into a pandas DataFrame, such as an Excel or CSV file. This list will be used to identify the tables that need to be archived.
+    
+    - The format of the list should be as follows:
+
+    | database_name_1 | source_table | database_name_2 | target_table |
+    |-----------------|--------------|-----------------|--------------|
+    | source_db1      | table1       | target_db1      | table1       |
+    | source_db2      | table2       | target_db2      | table2       |
+    | ...             | ...          | ...             | ...          |
+
+    Here, `database_name_1` and `source_table` are the database and table names in the source database, and `database_name_2` and `target_table` are the database and table names in the target database. If the target table name is not provided, the source table name will be used.
+
+    - When creating this list, please ensure that all table names and database names are spelled correctly and match exactly with their names in the database. An incorrect or misspelled name can cause the archiving process to fail.
+
+    - Remember to include all the tables that need to be archived. If a table is not included in the list, it will not be archived. Conversely, if a table is included in the list, the archiving process will attempt to archive it, so please double-check the list to ensure it only contains the tables that need to be archived.
+
+    - The order of the tables in the list does not matter for the archiving process, so you can list the tables in any order that is convenient for you.
+
+    - Please save and send me the final list when it's ready, so we can proceed with the archiving process.
+
+This list will be an essential part of our archiving process, and we need to ensure it is accurate and complete. Once the list is prepared, we can use it to read the tables into pandas DataFrames, store them, and then copy them to the target database.
+
+Please feel free to reach out if you have any questions or need further clarification on any of the steps.
+
+
+
+
+

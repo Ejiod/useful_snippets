@@ -229,4 +229,19 @@ for index, row in tables_df.iterrows():
     # Execute the query to create the view
     source_conn.execute(f'CREATE VIEW {view_name} AS {view_query}')
 
+--to SF
+
+from sqlalchemy import create_engine
+
+# Create a SQLAlchemy engine for Snowflake
+engine = create_engine(
+    f'snowflake://{user}:{password}@{account}/{database}/{schema}',
+    connect_args={
+        'warehouse': warehouse,
+    }
+)
+
+# Write tables to Snowflake
+for table_name, df in tables.items():
+    df.to_sql(table_name, con=engine, index=False, if_exists='replace')
 

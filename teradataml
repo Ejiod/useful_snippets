@@ -223,6 +223,16 @@ for index, row in tables_df.iterrows():
     # Define the view name (using the table name for simplicity)
     view_name = f"{source_table}_view"
 
+
+
+
+
+
+
+
+
+
+
     # Define the view query
     view_query = f"SELECT * FROM {source_db}.{source_table}"
 
@@ -244,4 +254,25 @@ engine = create_engine(
 # Write tables to Snowflake
 for table_name, df in tables.items():
     df.to_sql(table_name, con=engine, index=False, if_exists='replace')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+connection_string = f"{{'host':'{HOST}', 'user':'{USERNAME}', 'password':'{PASSWORD}', 'logmech':'LDAP'}}"
 

@@ -1,20 +1,47 @@
 import pandas as pd
+import pyodbc
 
-# Let's simulate your data
-data = {
-    'date': ['20/10/2021', '20/11/2022', '20/1/10/2023', 'N/a', 'Not Sent', '13 December 2015', 'Monday, October 15, 2015']
-}
+# Assuming you've already defined target_conn and tables_df
 
-df = pd.DataFrame(data)
+# Create the error log table
+try:
+    error_log_table_query = """
+    CREATE TABLE error_log (
+        source_table VARCHAR(255),
+        target_table VARCHAR(255),
+        error_code INTEGER,
+        error_message VARCHAR(MAX),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """
+    pd.read_sql(error_log_table_query, target_conn)
+except Exception as e:
+    print(f"Error creating error log table: {e}")
 
-# Replacing non-date values with NaN
-df['date'] = df['date'].replace(['N/a', 'Not Sent'], pd.NA)
+# Iterate over each row in the DataFrame for migration
+for index, row in tables_df.iterrows():
+    source_db = row['source_db']
+    source_table = row['source_table']
+    target_db = row['target_db']
+    target_table = row.get('target_table', source_table)  # Assuming target table name is same as source if not provided
 
-# Function to convert various date formats to standard format
-def convert_date(date):
+    # Create the target table by selecting data from the source table referenced via the foreign server
     try:
-        return pd.to_datetime(date).strftime('%d/%m/%Y')
-    except:
-        return pd.NA
+        query = f"CREATE TABLE {target_db}.{target_table} AS SELECT * FROM {source_db}.{source_table}@FServer"
+        pd.read_sql(query, target_conn)
+        print(f"Table {source_table} from {source_db} successfully migrated to {target_table} in {target_db}.")
+    except pyodbc.Error as e:
+        error_code = e.args[0]
+        error_msg = str(e)
+        print(f"Error migrating table {source_table} from {source_db} to {target_table} in {target_db}. Error Code: {error_code}, Error Message: {error_msg}")
+        
+        # Insert error details into the error log table
+        insert_error_query = f"""
+        INSERT INTO error_log (source_table, target_table, error_code, error_message)
+        VALUES ('{source_table}', '{target_table}', {error_code}, '{error_msg}')
+        """
+        pd.read_sql(insert_error_query, target_conn)
 
-df['date'] = df['date'].apply(convert_date)
+# Close the target connection
+target_conn.close()
+

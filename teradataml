@@ -345,6 +345,40 @@ target_conn.close()
 
 
 
+NIGRATION_DETAILS
+for index, row in tables_df.iterrows():
+    # ... [previous code]
+
+    start_time = datetime.datetime.now()  # Capture the start time
+
+    try:
+        # ... [table migration code]
+
+        # Fetch details for migration_details table
+        if table_exists(source_db, source_table, source_conn):
+            source_row_count = pd.read_sql(f"SELECT COUNT(*) FROM {source_db}.{source_table}", source_conn).iloc[0,0]
+            source_size = pd.read_sql(source_size_query, source_conn).iloc[0,0]
+        else:
+            source_row_count = 0
+            source_size = 0
+
+        if table_exists(target_db, target_table, target_conn):
+            target_row_count = pd.read_sql(f"SELECT COUNT(*) FROM {target_db}.{target_table}", target_conn).iloc[0,0]
+            target_size = pd.read_sql(target_size_query, target_conn).iloc[0,0]
+        else:
+            target_row_count = 0
+            target_size = 0
+
+        details_df = pd.DataFrame(data={
+            'source_table': [source_table],
+            'target_table': [target_table],
+            'source_row_count': [source_row_count],
+            'target_row_count': [target_row_count],
+            'source_size_bytes': [source_size],
+            'target_size_bytes': [target_size]
+        })
+        copy_to_sql(df=details_df, table_name="migration_details", if_exists="append", index=False)
+
 
 
 

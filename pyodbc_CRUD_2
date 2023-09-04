@@ -98,3 +98,32 @@ for _, row in migration_df.iterrows():
 %mend runTestMacro;
 
 %runTestMacro;
+
+
+
+
+
+
+
+
+
+%macro runAccMacro;
+
+    %do year = 2012 %to 2013;
+        
+        %if &year = 2012 %then %let startMonth = 2; %else %let startMonth = 1;
+        %if &year = 2013 %then %let endMonth = 2; %else %let endMonth = 12;
+        
+        %do month = &startMonth %to &endMonth;
+            %let monthPadded = %sysfunc(putn(&month, z2.)); /* Pads the month with 0 if needed */
+            %let monthName = %sysfunc(putn(&month, monname3.)); /* Gets the 3-letter month abbreviation */
+            %let dateFormatted = %sysfunc(putn(&month, date7.), '01&monthName.&year'd); /* Constructs the date string */
+
+            %acc(&year.&monthPadded, &year._&monthPadded, "&dateFormatted"d, &monthName.&year);
+        %end;
+    %end;
+
+%mend runAccMacro;
+
+%runAccMacro;
+

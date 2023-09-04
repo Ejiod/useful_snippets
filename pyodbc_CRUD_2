@@ -147,3 +147,56 @@ for _, row in migration_df.iterrows():
 
 %runAccMacro;
 
+
+
+
+
+
+%macro runScores;
+
+    /* Loop through years */
+    %do year = 2012 %to 2013;
+
+        /* Loop through months */
+        %do month = 1 %to 12;
+
+            /* Only go to February 2013 */
+            %if &year = 2013 & &month > 2 %then %return;
+
+            %let monthPadded = %sysfunc(putn(&month, z2.)); 
+            %let monthName = %sysfunc(putn(&month, monname3.)); /* Gets the 3-letter month abbreviation */
+
+            /* Calculate the two preceding months */
+            %let priorMonth1 = %eval(&month - 1);
+            %let priorYear1 = &year;
+
+            %let priorMonth2 = %eval(&month - 2);
+            %let priorYear2 = &year;
+
+            /* Adjust if priorMonth1 goes below January */
+            %if &priorMonth1 <= 0 %then %do;
+                %let priorMonth1 = %eval(12 + &priorMonth1);
+                %let priorYear1 = %eval(&year - 1);
+            %end;
+
+            /* Adjust if priorMonth2 goes below January */
+            %if &priorMonth2 <= 0 %then %do;
+                %let priorMonth2 = %eval(12 + &priorMonth2);
+                %let priorYear2 = %eval(&year - 1);
+            %end;
+
+            %let monthName1 = %sysfunc(putn(&priorMonth1, monname3.));
+            %let monthName2 = %sysfunc(putn(&priorMonth2, monname3.));
+
+            /* Call the scores macro */
+            %scores(&year.&monthPadded, &year._&monthPadded, &monthName1, &monthName2);
+
+        %end; /* end of month loop */
+
+    %end; /* end of year loop */
+
+%mend runScores;
+
+%runScores;
+
+

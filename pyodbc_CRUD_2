@@ -80,3 +80,21 @@ for _, row in migration_df.iterrows():
     create_view(row['source_table'], source_connection)
     if table_exists(row['target_table'], target_connection) and view_exists(f"{row['source_table']}_view", source_connection):
         delete_table(row['source_table'], source_connection)
+
+
+
+
+
+
+%macro runTestMacro;
+
+    %do year = 2013 %to 2019;
+        %do month = 5 %to 12;
+            %let monthPadded = %sysfunc(putn(&month, z2.)); /* Pads the month with 0 if needed */
+            %test(&year.&monthPadded, &year._&monthPadded);
+        %end;
+    %end;
+
+%mend runTestMacro;
+
+%runTestMacro;

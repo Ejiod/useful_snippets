@@ -387,3 +387,30 @@ for _, row in migration_df.iterrows():
 
 
 
+
+
+
+
+
+
+%macro runB6(cohort_month);
+
+    /* Convert cohort_month (like feb2015) to a SAS date */
+    %let cohort_date = %sysfunc(inputn(&cohort_month, monyy5.));
+
+    /* Loop over the 6 months prior to the cohort month */
+    %do i = 1 %to 6;
+        /* Calculate the date for month i prior to the cohort month */
+        %let prior_date = %sysfunc(intnx(month, &cohort_date, -&i));
+        
+        /* Convert the prior_date to monyy5. format (like aug14) */
+        %let prior_month = %sysfunc(putn(&prior_date, monyy5.));
+
+        /* Call the %b6 macro */
+        %b6(&prior_month, &i);
+    %end;
+
+%mend runB6;
+
+
+

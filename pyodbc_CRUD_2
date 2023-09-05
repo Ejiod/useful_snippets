@@ -223,3 +223,48 @@ for _, row in migration_df.iterrows():
 %runAccMacro;
 
 
+
+
+
+
+%macro runPriorMonths;
+
+    /* Loop through years */
+    %do year = 2012 %to 2014;
+
+        /* Loop through months */
+        %do month = 1 %to 12;
+
+            /* Only go to December 2014 */
+            %if &year = 2014 & &month > 12 %then %return;
+
+            /* Array to store the 6 prior months */
+            %let priorMonths[6] = ;
+
+            /* Calculate the 6 prior months */
+            %do i = 1 %to 6;
+                %let priorMonth = %eval(&month - &i);
+                %let priorYear = &year;
+
+                /* If priorMonth goes below January, adjust year and month */
+                %if &priorMonth <= 0 %then %do;
+                    %let priorMonth = %eval(12 + &priorMonth);
+                    %let priorYear = %eval(&year - 1);
+                %end;
+
+                %let monthPadded = %sysfunc(putn(&priorMonth, z2.));
+                %let priorMonths[&i] = &priorYear._&monthPadded;
+            %end;
+
+            /* Call the prior_months macro */
+            %prior_months(&priorMonths[1], &priorMonths[2], &priorMonths[3], &priorMonths[4], &priorMonths[5], &priorMonths[6], &year.&month);
+
+        %end; /* end of month loop */
+
+    %end; /* end of year loop */
+
+%mend runPriorMonths;
+
+%runPriorMonths;
+
+

@@ -268,3 +268,25 @@ for _, row in migration_df.iterrows():
 %runPriorMonths;
 
 
+from datetime import datetime, timedelta
+
+def generate_prior_months_string(start_date, end_date):
+    start = datetime.strptime(start_date, "%Y_%m")
+    end = datetime.strptime(end_date, "%Y_%m")
+
+    output_strings = []
+
+    while start <= end:
+        prior_months = [(start - timedelta(days=30 * i)).strftime("%Y_%m") for i in range(1, 7)]
+        call_string = "%prior_months({});".format(",".join(prior_months))
+        output_strings.append(call_string)
+        start = start + timedelta(days=30)
+
+    return output_strings
+
+start_date = "2012_01"
+end_date = "2014_12"
+calls = generate_prior_months_string(start_date, end_date)
+print("\n".join(calls))
+
+

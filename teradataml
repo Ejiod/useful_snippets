@@ -385,6 +385,25 @@ for index, row in tables_df.iterrows():
 
 
 
+%macro RunL6ForSixMonths(input_month, input_year);
+    /* Convert the input month and year to a SAS date */
+    %let startDate = %sysfunc(mdy(&input_month, 1, &input_year));
+
+    /* Loop through the 6 months leading up to the start date */
+    %do i = 1 %to 6;
+        /* Calculate the month and year for the i-th previous month */
+        %let prevDate = %sysfunc(intnx(month, &startDate, -&i));
+        %let prevMonth = %sysfunc(month(&prevDate));
+        %let prevYear = %sysfunc(year(&prevDate));
+        %let monthName = %sysfunc(putn(&prevMonth, z2.)) || %substr(&prevYear, 3);
+
+        /* Call the L6 macro for the calculated month */
+        %L6(&monthName, &i);
+    %end;
+%mend RunL6ForSixMonths;
+
+/* Example usage for February 2015 */
+%RunL6ForSixMonths(2, 2015);
 
 
 

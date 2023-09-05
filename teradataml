@@ -1,1 +1,30 @@
 
+
+%macro getLast6Months(year, month);
+    /* Calculate the last 6 months */
+    %let startDate = %sysfunc(intnx(month, %sysfunc(mdy(&month, 1, &year)), -5, s));
+
+    /* Process each month using the %16 macro */
+    %do i = 0 %to 5;
+        %let currentMonth = %sysfunc(intnx(month, &startDate, &i, s));
+        %let monthYear = %sysfunc(putn(%sysfunc(month(&currentMonth)), monname3.))%sysfunc(substr(&year, 3));
+        %16(&monthYear, &i+1);
+    %end;
+
+    /* Merge all temporary datasets */
+    data combined;
+        merge temp_month1 (in=a) temp_month2 (in=b) temp_month3 (in=c) temp_month4 (in=d) temp_month5 (in=e) temp_month6 (in=f);
+        by accg_unit_id account_no customer_id_main customer_id;
+    run;
+
+    /* Clean up temporary datasets */
+    %do i = 1 %to 6;
+        proc datasets lib=work nolist;
+            delete temp_month&i;
+        quit;
+    %end;
+    
+%mend;
+
+/* For Feb 2015 */
+%getLast6Months(2015, 2);

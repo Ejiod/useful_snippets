@@ -1,12 +1,14 @@
 %macro merge_datasets;
     data merged_data;
-        %do year = 2012 %to 2014;  /* Adjusted the loop to include 2014 */
+        %do year = 2012 %to 2014;
+            %let short_year = %substr(&year., 3);  /* Extract the last 2 digits of the year */
             %do month = 1 %to 12;
                 %let monthname = %sysfunc(monthname(&month. 01));
                 %let monthname = %substr(&monthname., 1, 3);
                 %let monthname = %lowcase(&monthname.);
                 
-                set temp.xxx&monthname.&year._;
+                /* Using short_year for dataset naming */
+                set _&monthname.&short_year
             %end;
         %end;
     run;

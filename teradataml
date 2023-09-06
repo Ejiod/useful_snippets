@@ -1,1 +1,20 @@
 
+%macro split_data;
+
+    %do year = 2012 %to 2014;
+        %do month = 1 %to 12;
+            %let ym = &year.%sysfunc(putn(&month, z2.));  /* Create the year-month format */
+
+            data split_&ym;  /* Name of the new dataset will be like split_201201, split_201202, etc. */
+                set lagged_data;
+                if date_column = &ym;
+            run;
+
+            %* Exit the loop after 201412;
+            %if &year = 2014 and &month = 12 %then %leave;
+        %end;
+    %end;
+
+%mend split_data;
+
+%split_data;

@@ -25,3 +25,35 @@ combined_data = pd.concat(all_dataframes, ignore_index=True)
 
 # Save the combined data to a new Excel file or do further processing as needed
 combined_data.to_excel('combined_data_with_sheet_names.xlsx', index=False)
+
+
+
+
+
+import glob
+import pandas as pd
+
+# Specify the folder where your Excel files are located
+folder_path = 'your_folder_path_here'
+
+# Initialize an empty list to store dataframes for each sheet
+all_dataframes = []
+
+# Use glob to get a list of Excel files in the folder
+excel_files = glob.glob(os.path.join(folder_path, '*.xlsx'))
+
+# Iterate through the Excel files
+for excel_file in excel_files:
+    xls = pd.ExcelFile(excel_file)
+    sheet_names = xls.sheet_names  # Get the names of all sheets in the Excel file
+    
+    for sheet_name in sheet_names:
+        df = pd.read_excel(excel_file, sheet_name=sheet_name)  # Read the Excel sheet into a DataFrame
+        df['SheetName'] = sheet_name  # Add a new column for the sheet name
+        all_dataframes.append(df)
+
+# Combine all dataframes into one
+combined_data = pd.concat(all_dataframes, ignore_index=True)
+
+# Save the combined data to a new Excel file or do further processing as needed
+combined_data.to_excel('combined_data_with_sheet_names.xlsx', index=False)

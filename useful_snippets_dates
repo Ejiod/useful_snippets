@@ -45,3 +45,73 @@ for index, row in tables_df.iterrows():
 # Close the target connection
 target_conn.close()
 
+
+
+
+
+
+CHECK THIS
+
+import pyodbc
+import pandas as pd
+import datetime
+
+# Connection strings for your databases (Replace with your actual connection details)
+conn_str_db1 = 'DRIVER={Teradata};DBCNAME=your_host1;UID=your_user;PWD=your_pass;DATABASE=your_db1;'
+conn_str_db2 = 'DRIVER={Teradata};DBCNAME=your_host2;UID=your_user;PWD=your_pass;DATABASE=your_db2;'
+
+# Load the data with source and target information
+data = pd.read_excel("path_to_your_file.xlsx")
+
+logs = []
+
+for index, row in data.iterrows():
+    source_db = row['source_db']
+    source_col_count = row['source_col_count']
+    source_row_count = row['source_row_count']
+    target_db = row['target_db']
+    target_col_count = row['target_col_count']
+    target_row_count = row['target_row_count']
+
+    # Connect to source and target databases
+    with pyodbc.connect(conn_str_db1) as conn1, pyodbc.connect(conn_str_db2) as conn2:
+        source_query = f"SELECT COUNT(*) FROM {source_db}.{row['source_table']}"
+        target_query = f"SELECT COUNT(*) FROM {target_db}.{row['target_table']}"
+
+        source_result = pd.read_sql(source_query, conn1)
+        target_result = pd.read_sql(target_query, conn2)
+
+    # Validate if row and column counts are equal
+    row_count_match = source_row_count == target_row_count
+    col_count_match = source_col_count == target_col_count
+
+    # Log details
+    status = 'Success' if row_count_match and col_count_match else 'Failed'
+    logs.append({
+        'source_db': source_db,
+        'source_col_count': source_col_count,
+        'source_row_count': source_row_count,
+        'target_db': target_db,
+        'target_col_count': target_col_count,
+        'target_row_count': target_row_count,
+        'status': status,
+        'validation_time': datetime.datetime.now()
+    })
+
+    # If both row and column counts match, drop the source table
+    if row_count_match and col_count_match:
+        with pyodbc.connect(conn_str_db1) as conn1:
+            try:
+                conn1.execute(f"DROP TABLE {source_db}.{row['source_table']}")
+                logs[-1]['source_table_status'] = 'Dropped'
+            except Exception as e:
+                logs[-1]['source_table_status'] = 'Drop Failed'
+                logs[-1]['drop_error_message'] = str(e)
+
+# Convert logs to DataFrame
+logs_df = pd.DataFrame(logs)
+print(logs_df)
+
+# Optionally, save logs to an Excel file
+logs_df.to_excel("validation_logs.xlsx", index=False)
+

@@ -1,5 +1,4 @@
 
-miro.com/app/board/uXjVMggdBww=/?utm_source=showme&utm_campaign=cpa&share_link_id=268636485200
 ---
 
 ### Process Guide: Data Validation, Migration, and Archiving
@@ -63,6 +62,9 @@ for index, row in data_info.iterrows():
 
     # Log the details.
 ```
+
+miro.com/app/board/uXjVMggdBww=/?utm_source=showme&utm_campaign=cpa&share_link_id=268636485200
+
 
 **Step 5: Validate Data**
 

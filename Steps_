@@ -1,10 +1,5 @@
 
-1. Validate the row and column counts of tables in source and target databases.
-2. Migrate data from the source to the target database.
-3. Drop the source tables if the data validation is successful.
-
-Your provided guide outlines a structured and clear approach to the Data Validation, Migration, and Archiving process. Here's a refined version with more specific instructions and code snippets to help users understand and implement the steps:
-
+miro.com/app/board/uXjVMggdBww=/?utm_source=showme&utm_campaign=cpa&share_link_id=268636485200
 ---
 
 ### Process Guide: Data Validation, Migration, and Archiving

@@ -58,3 +58,41 @@ combined_data = pd.concat(all_dataframes, ignore_index=True)
 # Save the combined data to a new Excel file or do further processing as needed
 
 combined_data.to_excel('combined_data_with_sheet_names.xlsx', index=False)
+
+
+
+
+
+
+
+
+
+import dask.dataframe as dd
+import pandas as pd
+import cx_Oracle
+
+# Setup the connection as before
+dsn_tns = cx_Oracle.makedsn('192.168.1.1', '1521', service_name='my_service_name')
+conn = cx_Oracle.connect('user', 'passwd', dsn_tns)
+
+# Define a SQL query
+query = "SELECT * FROM your_table"
+
+# Use Pandas to read the SQL query in chunks
+chunk_size = 50000  # Adjust chunk size based on your memory and dataset size
+dfs = []  # This list will hold each chunk as a Pandas DataFrame
+
+for chunk in pd.read_sql(query, conn, chunksize=chunk_size):
+    # Convert each Pandas DataFrame into a Dask DataFrame and append to the list
+    ddf = dd.from_pandas(chunk, npartitions=1)
+    dfs.append(ddf)
+
+# Concatenate all Dask DataFrames into one
+dask_df = dd.concat(dfs)
+
+# Write the Dask DataFrame to Parquet
+dask_df.to_parquet('output_directory/my_data.parquet', write_index=False)
+
+# No need to close the connection when using 'with' context manager
+conn.close()
+

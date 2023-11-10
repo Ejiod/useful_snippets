@@ -137,3 +137,45 @@ filtered_ddf = ddf[matches_keywords & matches_not_sent]
 
 # Now filtered_ddf will contain only the rows where 'text_column' contains any of the keywords
 # and does not contain the phrase "not sent"
+
+
+
+
+
+-SPARK WAY
+
+from pyspark.sql import SparkSession
+from pyspark.sql import DataFrameWriter
+
+# Initialize a Spark session
+spark = SparkSession.builder \
+    .appName("ParquetToSnowflake") \
+    .getOrCreate()
+
+# Read the Parquet files into a Spark DataFrame
+df = spark.read.parquet("path/to/parquet/folder/")
+
+# Optional: Process the data with Spark DataFrame transformations if needed
+
+# Snowflake connection options
+options = {
+    "sfURL": "your_account.snowflakecomputing.com",
+    "sfUser": "your_username",
+    "sfPassword": "your_password",
+    "sfDatabase": "your_database",
+    "sfSchema": "your_schema",
+    "sfWarehouse": "your_warehouse",
+    "dbtable": "your_snowflake_table"
+}
+
+# Write the DataFrame to Snowflake
+df.write \
+    .format("net.snowflake.spark.snowflake") \
+    .options(**options) \
+    .option("dbtable", "your_snowflake_table") \
+    .mode("append") \
+    .save()
+
+# Stop the Spark session
+spark.stop()
+

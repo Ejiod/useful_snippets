@@ -65,4 +65,75 @@ combined_data.to_excel('combined_data_with_sheet_names.xlsx', index=False)
 
 
 
+--GLOB TO READ ALL PARQUET
 
+import pandas as pd
+import glob
+
+# Define the path to your parquet files
+parquet_files = glob.glob('path/to/parquet/files/*.parquet')
+
+# Read and concatenate the parquet files into a single DataFrame
+df_combined = pd.concat((pd.read_parquet(pf) for pf in parquet_files))
+
+# Now df_combined holds all your data combined from the parquet files
+
+
+import dask.dataframe as dd
+
+# Read the parquet files into a Dask DataFrame
+ddf = dd.read_parquet('path/to/parquet/files/*.parquet')
+
+# Use Dask operations to manipulate the dataframe as needed
+# For example, you can perform groupby, aggregations, etc.
+
+# If you need to convert the Dask DataFrame to Pandas (be cautious with memory usage)
+# df_combined = ddf.compute()
+
+
+
+
+
+
+import dask.dataframe as dd
+
+# Your keywords
+keywords = ['GH', 'ANYWORD, 'BASE', 'CODE']
+
+# Create a regex pattern to match any of the keywords
+# This joins the keywords with the regex 'or' operator '|', and uses \b for word boundaries
+pattern = '|'.join(r'\b{}\b'.format(keyword) for keyword in keywords)
+
+# Read the parquet files into a Dask DataFrame
+ddf = dd.read_parquet('path/to/parquet/files/*.parquet')
+
+# Assuming 'text_column' is the name of the column you want to search within
+# This will return a boolean series where the regex condition is True
+matches = ddf['text_column'].str.contains(pattern, case=False, na=False)
+
+# Filter the DataFrame based on the regex pattern
+filtered_ddf = ddf[matches]
+
+# Now filtered_ddf will contain only the rows where 'text_column' contains any of the keywords
+
+REGEX2
+import dask.dataframe as dd
+
+# Your keywords
+keywords = ['GH', 'ANYWORD, 'BASE', 'CODE']
+pattern = '|'.join(r'\b{}\b'.format(keyword) for keyword in keywords)
+
+# Read the parquet files into a Dask DataFrame
+ddf = dd.read_parquet('path/to/parquet/files/*.parquet')
+
+# Filter rows that contain any of the keywords
+matches_keywords = ddf['text_column'].str.contains(pattern, case=False, na=False)
+
+# Further filter to exclude rows with "not sent"
+matches_not_sent = ~ddf['text_column'].str.contains("not sent", case=False, na=False)
+
+# Apply both filters to the DataFrame
+filtered_ddf = ddf[matches_keywords & matches_not_sent]
+
+# Now filtered_ddf will contain only the rows where 'text_column' contains any of the keywords
+# and does not contain the phrase "not sent"

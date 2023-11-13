@@ -62,38 +62,3 @@ combined_data.to_excel('combined_data_with_sheet_names.xlsx', index=False)
 
 
 
-
-
-
-import pandas as pd
-from spellchecker import SpellChecker
-
-# Load your data
-file_path = 'path_to_your_file.csv'  # Replace with your file path
-data = pd.read_csv(file_path)
-
-# Initialize the spell checker
-spell = SpellChecker()
-
-# Function to identify and correct misspelled words in a text
-def correct_spelling(text):
-    if pd.isna(text):
-        return text  # Return as is if the text is NaN
-    misspelled = spell.unknown(text.split())
-    corrected_text = text
-    for word in misspelled:
-        # Get the most likely correction
-        correction = spell.correction(word)
-        # Replace the misspelled word with the correction
-        corrected_text = corrected_text.replace(word, correction)
-    return corrected_text
-
-# Applying spell checking to the 'Topic' and 'Content' columns
-data['Corrected Topic'] = data['Topic'].apply(correct_spelling)
-data['Corrected Content'] = data['Content'].apply(correct_spelling)
-
-# Save or display the results
-data.to_csv('path_to_output_file.csv')  # Replace with your desired output file path
-
-
-

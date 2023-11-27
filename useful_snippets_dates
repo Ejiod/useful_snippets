@@ -115,7 +115,14 @@ print(logs_df)
 # Optionally, save logs to an Excel file
 logs_df.to_excel("validation_logs.xlsx", index=False)
 
-
+with pyodbc.connect(conn_str_db1) as conn1:
+    for log in logs:
+        placeholders = ', '.join(['?'] * len(log))
+        columns = ', '.join(log.keys())
+        # Include the database name in the INSERT statement if necessary
+        sql = f"INSERT INTO {your_validation_db_name}.ValidationLog ({columns}) VALUES ({placeholders})"
+        conn1.execute(sql, tuple(log.values()))
+    conn1.commit()
 
 
 

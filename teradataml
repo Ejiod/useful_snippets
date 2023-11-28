@@ -99,3 +99,43 @@ data.to_csv('data_spell2.csv')  # Replace with your desired output file path
 
 
 
+
+
+ERROR LOGS
+import pandas as pd
+from sqlalchemy import create_engine
+import datetime
+import getpass
+import socket
+import re
+
+
+    except Exception as e:
+        finish_time = datetime.now()
+        error_message = str(e)
+        session_match = re.search(r'\[Session (\d+)\]', error_message)
+        error_code_match = re.search(r'\[Error (\d+)\]', error_message)
+
+        session_id = session_match.group(1) if session_match else 'N/A'
+        error_code = error_code_match.group(1) if error_code_match else 'N/A'
+        error_detail = 'Table already exists' if 'already exists' in error_message else 'Other error'
+
+        consolidated_metadata.append({
+            'user': getpass.getuser(),
+            'host': socket.gethostname(),
+            'source_db': row['source_db'],
+            'source_table': row['source_table'],
+            'target_db': row['target_db'],
+            'target_table': row['target_table'],
+            'error_session': session_id,
+            'error_code': error_code,
+            'error_message': error_detail,
+            'time_executed': start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'time_finished': finish_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'database_server': 'target_host'  # Adjust as needed
+        })
+
+
+
+
+

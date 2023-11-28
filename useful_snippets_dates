@@ -150,3 +150,144 @@ for file in parquet_files:
 
 # Now, combined_data contains the data from all Parquet files in the directory
 
+
+
+
+---USING SQLALCHEMY
+
+import pandas as pd
+from sqlalchemy import create_engine, text
+from datetime import datetime
+import getpass
+import socket
+
+# Connection strings for SQLAlchemy engines
+source_engine_str = 'teradatasql://username:password@source_host/source_db?authentication=LDAP'
+target_engine_str = 'teradatasql://username:password@target_host/target_db?authentication=LDAP'
+
+# Create SQLAlchemy engines for the source and target databases
+source_engine = create_engine(source_engine_str)
+target_engine = create_engine(target_engine_str)
+
+# DataFrame containing the tables to migrate
+df = pd.DataFrame({
+    'source_table': ['TableA', 'TableB', 'TableC', 'TableD'],
+    'target_table': ['TableA', 'TableB', 'TableC', 'TableD'],
+    'source_db': ['SD', 'SD', 'SD', 'SD'],
+    'target_db': ['TD', 'TD', 'TD', 'TD']
+})
+
+# Get the username and hostname for logging
+username = getpass.getuser()
+hostname = socket.gethostname()
+
+# Prepare a list to collect error logs
+error_logs = []
+
+# Iterate over each row in the DataFrame and migrate tables
+for index, row in df.iterrows():
+    source_table_full = f"{row['source_db']}.{row['source_table']}"
+    target_table_full = f"{row['target_db']}.{row['target_table']}"
+    start_time = datetime.now()
+
+    try:
+        # Check if the target table already exists
+        check_table_sql = text(f"SELECT TABLE_NAME FROM DBC.TablesV WHERE TableKind = 'T' AND TableName = '{target_table_full.split('.')[1]}' AND DatabaseName = '{target_table_full.split('.')[0]}'")
+        table_exists = target_engine.execute(check_table_sql).fetchone()
+
+        if table_exists:
+            raise Exception(f"Table {target_table_full} already exists.")
+
+        # Create the target table and copy the data from the source table
+        create_table_sql = text(f"CREATE TABLE {target_table_full} AS (SELECT * FROM {source_table_full}) WITH DATA")
+        target_engine.execute(create_table_sql)
+        finish_time = datetime.now()
+
+    except Exception as e:
+        finish_time = datetime.now()
+        error_logs.append({
+            'user': username,
+            'host': hostname,
+            'source_db': row['source_db'],
+            'source_table': row['source_table'],
+            'target_db': row['target_db'],
+            'target_table': row['target_table'],
+            'error_code': e.__class__.__name__,
+            'error_message': str(e),
+            'time_executed': start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'time_finished': finish_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'database_server': 'target_host'  # or source_host depending on where the error occurred
+        })
+
+# Convert error logs to DataFrame and log them to a table
+error_logs_df = pd.DataFrame(error_logs)
+if not error_logs_df.empty:
+    error_logs_df.to_sql(name='error_log_table', con=target_engine, if_exists='append', index=False)
+
+# Dispose the SQLAlchemy engines
+source_engine.dispose()
+target_engine.dispose()
+
+
+next
+
+import pandas as pd
+from sqlalchemy import create_engine
+
+# Replace with your actual SQLAlchemy engine instances
+source_engine = create_engine('source_connection_string')
+target_engine = create_engine('target_connection_string')
+
+# Function to fetch row count and size for a specific database and table
+def fetch_metadata(engine, db_name, table_name):
+    row_count_sql = f"SELECT COUNT(*) AS row_count FROM {db_name}.{table_name}"
+    column_count_sql = f"SELECT COUNT(*) AS column_count FROM DBC.ColumnsV WHERE DatabaseName = '{db_name}' AND TableName = '{table_name}'"
+    size_sql = f"SELECT SUM(CurrentPerm) AS table_size FROM DBC.TableSizeV WHERE DatabaseName = '{db_name}' AND TableName = '{table_name}' GROUP BY DatabaseName, TableName"
+
+    # Fetch row count
+    row_count_df = pd.read_sql(row_count_sql, engine)
+    # Fetch column count
+    column_count_df = pd.read_sql(column_count_sql, engine)
+    # Fetch size
+    size_df = pd.read_sql(size_sql, engine)
+
+    return row_count_df.iloc[0]['row_count'], column_count_df.iloc[0]['column_count'], size_df.iloc[0]['table_size'] if not size_df.empty else 0
+
+# DataFrame containing the tables to get metadata for
+df = pd.DataFrame({
+    'source_table': ['TableA', 'TableB', 'TableC', 'TableD'],
+    'target_table': ['TableA', 'TableB', 'TableC', 'TableD'],
+    'source_db': ['SD', 'SD', 'SD', 'SD'],
+    'target_db': ['TD', 'TD', 'TD', 'TD']
+})
+
+# List to store consolidated metadata
+consolidated_metadata = []
+
+for index, row in df.iterrows():
+    # Fetch metadata for source table
+    source_row_count, source_column_count, source_table_size = fetch_metadata(source_engine, row['source_db'], row['source_table'])
+    
+    # Fetch metadata for target table
+    target_row_count, target_column_count, target_table_size = fetch_metadata(target_engine, row['target_db'], row['target_table'])
+
+    # Add to consolidated list
+    consolidated_metadata.append({
+        'source_db': row['source_db'],
+        'target_db': row['target_db'],
+        'SOURCE_row_count': source_row_count,
+        'SOURCE_column_count': source_column_count,
+        'TARGET_row_count': target_row_count,
+        'TARGET_column_count': target_column_count,
+        'source_table': row['source_table'],
+        'target_table': row['target_table'],
+        'source_table_byte': source_table_size,
+        'target_table_byte': target_table_size
+    })
+
+# Convert the list to a DataFrame
+metadata_df = pd.DataFrame(consolidated_metadata)
+
+# Display or save the metadata
+print(metadata_df)
+metadata_df.to_excel("tables_metadata.xlsx", index=False)

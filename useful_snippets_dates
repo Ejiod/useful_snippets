@@ -291,3 +291,35 @@ metadata_df = pd.DataFrame(consolidated_metadata)
 # Display or save the metadata
 print(metadata_df)
 metadata_df.to_excel("tables_metadata.xlsx", index=False)
+
+
+
+
+To SF
+
+import snowflake.connector
+from snowflake.connector.pandas_tools import write_pandas
+
+# ... (other setup code)
+
+# Connect to Snowflake
+snowflake_ctx = snowflake.connector.connect(**snowflake_conn_params)
+cs = snowflake_ctx.cursor()
+
+# Example loop over the DataFrame rows
+for index, row in table_list_df.iterrows():
+    source_table = row['source_table']
+    source_db = row['source_db']
+    target_table = row['target_table']
+    
+    # Connect to Teradata and fetch the data
+    with teradatasql.connect(**teradata_conn_params) as teradata_conn:
+        teradata_query = f"SELECT * FROM {source_db}.{source_table}"
+        df = pd.read_sql(teradata_query, teradata_conn)
+    
+    # Write the data to Snowflake, automatically creating the table if it doesn't exist
+    write_pandas(snowflake_ctx, df, target_table, auto_create_table=True)
+
+# Close the Snowflake connection
+cs.close()
+snowflake_ctx.close()

@@ -323,3 +323,40 @@ for index, row in table_list_df.iterrows():
 # Close the Snowflake connection
 cs.close()
 snowflake_ctx.close()
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+import cx_Oracle
+
+# Function to split list into chunks of max size 1000
+def chunker(seq, size):
+    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
+
+# Assuming df is your DataFrame and it has a column named 'Acc'
+acc_list = df['Acc'].tolist()
+
+# Database connection
+connection_string = 'username/password@hostname:port/service_name'
+connection = cx_Oracle.connect(connection_string)
+
+# Empty DataFrame to store results
+result_df = pd.DataFrame()
+
+# Process in chunks
+for chunk in chunker(acc_list, 1000):
+    acc_values = ','.join([f"'{acc}'" for acc in chunk])
+    query = f"SELECT * FROM your_table WHERE Acc IN ({acc_values})"
+    chunk_df = pd.read_sql(query, con=connection)
+    result_df = pd.concat([result_df, chunk_df], ignore_index=True)
+
+# Close the connection
+connection.close()

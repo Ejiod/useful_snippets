@@ -1,0 +1,36 @@
+import pandas as pd
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Initialize the sentence transformer model
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Function to generate embeddings using the sentence-transformers model
+def get_embedding(text):
+    return model.encode(text)
+
+# Example DataFrame with text data
+texts = ['Hello, world!', 'How are you?', 'This is an example text.']
+df = pd.DataFrame({'text': texts})
+
+# Generate embeddings for each text in the DataFrame
+df['embedding'] = df['text'].apply(get_embedding)
+
+# Function to calculate cosine similarities
+def calculate_similarities(df, user_input):
+    user_embedding = get_embedding(user_input)
+    embeddings = np.stack(df['embedding'].values)
+    user_embedding_reshaped = np.array(user_embedding).reshape(1, -1)
+    similarities = cosine_similarity(user_embedding_reshaped, embeddings)
+    return similarities[0]
+
+# User input for dynamic similarity search
+user_input = "Your user-specified text here"
+
+# Calculate similarities to user input
+df['similarity_to_user_input'] = calculate_similarities(df, user_input)
+
+# Sort and display texts based on their similarity to the user input
+similar_texts = df.sort_values(by='similarity_to_user_input', ascending=False)
+print(similar_texts)

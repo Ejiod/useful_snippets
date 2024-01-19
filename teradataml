@@ -28,7 +28,7 @@ combined_data.to_excel('combined_data_with_sheet_names.xlsx', index=False)
 
 
 
-
+(?:(?!not\s+sent|not\s+issued))
 
 import glob
 import pandas as pd

@@ -139,3 +139,45 @@ import re
 
 
 
+
+
+
+
+
+
+----SF---SP
+CREATE OR REPLACE FUNCTION process_info_udf(input_data VARIANT)
+RETURNS TABLE (col1 VARIANT, col5 VARIANT, col7 VARIANT, matches_regex BOOLEAN)
+LANGUAGE PYTHON
+RUNTIME_VERSION = 3.8
+PACKAGES = ('pandas',)
+HANDLER = 'udf'
+AS $$
+import pandas as pd
+
+def udf(input_data):
+    # Convert input VARIANT data to Pandas DataFrame
+    df = pd.DataFrame(input_data)
+
+    # Define the regex pattern
+    regex_pattern = (
+     Regex pattern
+    )
+
+    # Apply regex to the 'info_column' (assuming 'info_column' is one of the columns in your data)
+    df['matches_regex'] = df['info_column'].str.contains(regex_pattern, regex=True, na=False)
+
+    # Select only the required columns
+    df = df[['col1', 'col5', 'col7', 'matches_regex']]
+
+    # Convert DataFrame to list of dictionaries
+    return df.to_dict(orient='records')
+$$;
+
+
+SELECT *
+FROM TABLE(process_info_udf(
+    (SELECT OBJECT_CONSTRUCT(*) FROM GESR)
+));
+
+

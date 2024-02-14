@@ -182,35 +182,15 @@ FROM TABLE(process_info_udf(
 
 
 
+from snowflake.snowpark.functions import year, col
 
-CREATE OR REPLACE PROCEDURE process_text_with_regex(input_data VARIANT)
-RETURNS STRING
-LANGUAGE PYTHON
-RUNTIME_VERSION = '3.8'
-PACKAGES = ('pandas',)
-HANDLER = 'run'
-AS
-$$
-import pandas as pd
+# Extract the year and get unique years
+df_with_year = df.with_column("year", year(col("batch_month")))
+unique_years = df_with_year.select("year").distinct().collect()
 
-def run(ignored_session, input_data):
-    # Convert input VARIANT data to Pandas DataFrame
-    df = pd.DataFrame(input_data)
-
-    # Define the regex pattern
-    regex_pattern = (
-    
-    )
-
-    # Apply regex to the specified column (assuming 'info_column' is the column name)
-    df['matches_regex'] = df['info_column'].str.contains(regex_pattern, regex=True, na=False)
-
-    # Perform any additional data manipulation as required
-
-    # Convert the result to a desired format, e.g., JSON, CSV, etc.
-    result = df.to_json(orient='records')
-
-    return result
-$$;
-
+# Iterate over each year and write data for that year
+for year_row in unique_years:
+    year_value = year_row['year']
+    batch_df = df_with_year.filter(col("year") == year_value)
+    batch_df.write.mode("append").save_as_table("db2.schema2.new_table")
 

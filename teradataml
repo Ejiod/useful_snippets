@@ -194,3 +194,20 @@ for year_row in unique_years:
     batch_df = df_with_year.filter(col("year") == year_value)
     batch_df.write.mode("append").save_as_table("db2.schema2.new_table")
 
+
+
+
+
+
+from snowflake.snowpark.functions import year, col
+
+# Assuming df is your DataFrame and 'batch_month' is in 'YYYY-MM-DD' format
+df_with_year = df.with_column("year", year(col("batch_month")))
+
+unique_years = [2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014]
+
+# Iterate over each year and write data for that year
+for year_value in unique_years:
+    batch_df = df_with_year.filter(col("year") == year_value)
+    batch_df.write.mode("append").save_as_table("db2.schema2.new_table")
+

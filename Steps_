@@ -1,1 +1,8 @@
 ..
+Looking at the "How we will do it" section from the second image, here are three bullet points on how a data analyst could approach the tasks using the latest technologies and methodologies, without a specific focus on mobile analytics:
+
+1. Engage in rigorous data exploration, employing strategic data sourcing and analysis within the bank's cloud-based data warehouse, such as Snowflake, to uncover actionable insights that drive personalized customer engagements.
+
+2. Experiment with advanced data processing techniques and tools, including Python for data orchestration and AWS services for scalable computing power, to support innovative customer journey mapping and enhance personalization.
+
+3. Implement continuous integration and deployment (CI/CD) pipelines within AWS to automate the deployment of data models and algorithms, ensuring real-time data processing and immediate application of insights to customer engagement initiatives.

@@ -210,6 +210,30 @@ for year_value in unique_years:
     batch_df = df_with_date.filter(col("year") == year_value)
     batch_df.write.mode("append").save_as_table("db2.schema2.new_table")
 
+# Starting and ending year-month for the tables
+start_year_month = (2004, 2)
+end_year_month = (2024, 2)
+
+# Initial table
+initial_table = "SELECT * FROM b_gg_2004_01"
+
+# Generating the table names and UNION ALL part of the query
+tables = [initial_table]
+for year in range(start_year_month[0], end_year_month[0] + 1):
+    start_month = 1
+    end_month = 12
+    if year == start_year_month[0]:
+        start_month = start_year_month[1]
+    if year == end_year_month[0]:
+        end_month = end_year_month[1]
+    for month in range(start_month, end_month + 1):
+        table_name = f"SELECT * FROM b_gg_{{year:04d}}_{{month:02d}}"
+        tables.append(table_name)
+
+# Joining the table queries with UNION ALL
+sql_statement = "\nUNION ALL\n".join(tables)
+
+print(sql_statement)
 
 
 

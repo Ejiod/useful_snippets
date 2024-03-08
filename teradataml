@@ -238,4 +238,59 @@ print(sql_statement)
 
 
 
+from sqlalchemy import create_engine
+import pandas as pd
+
+# Create an engine to your Teradata database
+engine = create_engine('teradatasql://username:password@host/database')
+
+# The SQL query you want to execute
+sql_query = "SELECT * FROM your_large_table"
+
+# Specify the chunk size
+chunksize = 10000  # Adjust this based on your system's capabilities
+
+# Variable to keep track of the chunk number
+chunk_number = 0
+
+# Use read_sql with chunksize to read the data in chunks
+for chunk in pd.read_sql(sql=sql_query, con=engine, chunksize=chunksize):
+    # Process each chunk here if needed
+
+    # Save the chunk to a Parquet file
+    # Construct a file name based on the chunk number
+    file_name = f'output_chunk_{chunk_number}.parquet'
+    
+    # Save the DataFrame as a Parquet file
+    chunk.to_parquet(file_name, index=False)
+    
+    # Increment the chunk number
+    chunk_number += 1
+
+
+
+
+
+
+
+
+
+from sqlalchemy import create_engine
+import pandas as pd
+
+# Create an engine to your Teradata database
+engine = create_engine('teradatasql://username:password@host/database')
+
+# The SQL query you want to execute
+sql_query = "SELECT * FROM your_large_table"
+
+# Specify the chunk size
+chunksize = 10000  # Adjust this based on your system's capabilities
+
+# Use read_sql with chunksize to read the data in chunks
+for chunk in pd.read_sql(sql=sql_query, con=engine, chunksize=chunksize):
+    # Process each chunk here
+    # For example, you can perform data transformation, analysis, or directly save the chunk to a file
+    # Example to save chunk to a CSV file, appending each chunk to the file:
+    chunk.to_csv('output_file.csv', mode='a', index=False, header=not bool(chunk.first_valid_index()))
 

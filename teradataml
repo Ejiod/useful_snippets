@@ -294,3 +294,363 @@ for chunk in pd.read_sql(sql=sql_query, con=engine, chunksize=chunksize):
     # Example to save chunk to a CSV file, appending each chunk to the file:
     chunk.to_csv('output_file.csv', mode='a', index=False, header=not bool(chunk.first_valid_index()))
 
+
+
+
+
+
+
+Pyathena
+
+
+from pyathena import connect
+import pandas as pd
+import re
+
+# Connect to Athena
+conn = connect(s3_staging_dir='s3://YOUR_S3_BUCKET_NAME/path/to/',
+               region_name='YOUR_AWS_REGION')
+
+# Specify the database
+database_name = 'your_database_name'
+
+# Query to list tables in the specified database
+list_tables_query = f"SHOW TABLES IN {database_name}"
+tables_df = pd.read_sql(list_tables_query, conn)
+
+# Define a regex pattern to match tables starting with B_account_ followed by a 4-digit year and a 2-digit month
+pattern = re.compile(r'^B_account_\d{4}_\d{2}$')
+
+# Filter tables using the regex pattern
+filtered_tables = [table for table in tables_df['tab_name'] if pattern.match(table)]
+
+# Loop through the filtered tables
+for table_name in filtered_tables:
+    print(f"Processing table: {table_name}")
+    # Example query to select top 10 rows from each table
+    query = f"SELECT * FROM {database_name}.{table_name} LIMIT 10"
+    df = pd.read_sql(query, conn)
+    # Here you can process the dataframe as needed
+    print(df.head())  # Display the first few rows of the dataframe
+
+
+from pyathena import connect
+import pandas as pd
+import re
+
+# Connect to Athena using the appropriate S3 staging directory and AWS region
+conn = connect(s3_staging_dir='s3://your_s3_bucket/path/to/',
+               region_name='your_aws_region')
+
+# Specify the Athena database
+database_name = 'your_database_name'
+
+# Query to fetch all table names in the specified database
+list_tables_query = f"SHOW TABLES IN {database_name}"
+tables_df = pd.read_sql(list_tables_query, conn)
+
+# Regular expression to match tables starting with 'B_account_' followed by a 4-digit year and a 2-digit month
+regex_pattern = r'^B_account_\d{4}_\d{2}$'
+
+# Filter the DataFrame for table names that match the regex pattern
+filtered_tables = tables_df[tables_df['table_name'].str.match(regex_pattern)]
+
+# Loop through each filtered table name
+for index, row in filtered_tables.iterrows():
+    table_name = row['table_name']
+    print(f"Processing table: {table_name}")
+    # Here, you can place your query logic, for example, a simple SELECT query
+    query = f"SELECT * FROM {table_name} LIMIT 10"
+    df = pd.read_sql(query, conn)
+    # Display or process the query results
+    print(df)
+
+
+
+
+
+
+from pyathena import connect
+import pandas as pd
+import re
+from datetime import datetime
+
+# Function to generate a list of expected table name suffixes for the date range
+def generate_expected_suffixes(start_year, start_month, end_year, end_month):
+    start_date = datetime(start_year, start_month, 1)
+    end_date = datetime(end_year, end_month, 1)
+    current_date = start_date
+    
+    expected_suffixes = []
+    
+    while current_date <= end_date:
+        expected_suffixes.append(current_date.strftime('%Y_%m'))
+        current_date = datetime(current_date.year + (current_date.month // 12), ((current_date.month % 12) + 1), 1)
+        
+    return expected_suffixes
+
+# Connect to Athena using the appropriate S3 staging directory and AWS region
+conn = connect(s3_staging_dir='s3://your_s3_bucket/path/to/',
+               region_name='your_aws_region')
+
+# Specify the Athena database
+database_name = 'your_database_name'
+
+# Query to fetch all table names in the specified database
+list_tables_query = f"SHOW TABLES IN {database_name}"
+tables_df = pd.read_sql(list_tables_query, conn)
+
+# Regular expression to match tables starting with 'B_account_' followed by a 4-digit year and a 2-digit month
+regex_pattern = r'^B_account_(\d{4})_(\d{2})$'
+
+# Generate expected table name suffixes for the date range
+expected_suffixes = generate_expected_suffixes(2000, 1, 2024, 1)
+
+# Filter and verify tables cover the specified date range
+covered_suffixes = []
+
+for table in tables_df['tab_name']:
+    match = re.match(regex_pattern, table)
+    if match:
+        suffix = f"{match.group(1)}_{match.group(2)}"
+        if suffix in expected_suffixes:
+            covered_suffixes.append(suffix)
+            
+missing_suffixes = set(expected_suffixes) - set(covered_suffixes)
+
+if not missing_suffixes:
+    print("All expected tables from January 2000 to January 2024 are covered.")
+else:
+    print("Missing tables for the following months:", missing_suffixes)
+
+
+
+
+
+
+from pyathena import connect
+import pandas as pd
+import re
+
+# Connect to Athena
+conn = connect(s3_staging_dir='s3://your_s3_bucket/path/to/',
+               region_name='your_aws_region')
+
+# Specify the database
+database_name = 'your_database_name'
+
+# Query to list tables in the specified database
+list_tables_query = f"SHOW TABLES IN {database_name}"
+tables_df = pd.read_sql(list_tables_query, conn)
+
+# Define a regex pattern to match tables in the format 'B_account_YYYY_MM'
+pattern = re.compile(r'^B_account_(\d{4})_(\d{2})$')
+
+# Filter tables using the regex pattern and check if they cover the desired date range
+expected_range = pd.period_range(start='2000-01', end='2024-01', freq='M').strftime('%Y_%m')
+covered_tables = []
+
+for table in tables_df['tab_name']:
+    match = pattern.match(table)
+    if match:
+        year_month = f"{match.group(1)}_{match.group(2)}"
+        if year_month in expected_range:
+            covered_tables.append(year_month)
+
+# Identify any gaps in the coverage
+covered_range = pd.Series(covered_tables).unique()
+missing_range = list(set(expected_range) - set(covered_range))
+
+if not missing_range:
+    print("All months from January 2000 to January 2024 are covered.")
+else:
+    print(f"Missing table coverage for the following months: {sorted(missing_range)}")
+
+
+
+
+
+
+
+
+
+
+from pyathena import connect
+import polars as pl
+import re
+
+# Connect to Athena using the appropriate S3 staging directory and AWS region
+conn = connect(s3_staging_dir='s3://your_s3_bucket/path/to/',
+               region_name='your_aws_region')
+
+# Specify the Athena database
+database_name = 'your_database_name'
+
+# Query to fetch all table names in the specified database
+list_tables_query = f"SHOW TABLES IN {database_name}"
+
+# Fetch tables using PyAthena and convert the results to a Polars DataFrame
+tables_df = conn.cursor().execute(list_tables_query).as_pandas()
+tables_pl = pl.from_pandas(tables_df)
+
+# Regular expression to match tables starting with 'B_account_' followed by a 4-digit year and a 2-digit month
+regex_pattern = r'^B_account_\d{4}_\d{2}$'
+
+# Filter the DataFrame for table names that match the regex pattern
+# Polars doesn't support regex filtering natively like pandas, so we convert to a list, filter, then recreate a DataFrame
+filtered_table_names = [name for name in tables_pl['tab_name'].to_list() if re.match(regex_pattern, name)]
+filtered_tables_pl = pl.DataFrame({'table_name': filtered_table_names})
+
+# Loop through each filtered table name
+for row in filtered_tables_pl.iterrows():
+    table_name = row[1]['table_name']
+    print(f"Processing table: {table_name}")
+    # Here, you can place your query logic, for example, a simple SELECT query
+    query = f"SELECT * FROM {table_name} LIMIT 10"
+    df = conn.cursor().execute(query).as_pandas()  # Fetch data with PyAthena and convert to pandas DataFrame
+    df_pl = pl.from_pandas(df)  # Optionally convert pandas DataFrame to Polars DataFrame if needed
+    # Display or process the query results
+    print(df_pl)
+
+
+
+
+
+from pyathena import connect
+import polars as pl
+import re
+
+# Connect to Athena using the appropriate S3 staging directory and AWS region
+conn = connect(s3_staging_dir='s3://your_s3_bucket/path/to/',
+               region_name='your_aws_region')
+
+# Specify the Athena database
+database_name = 'your_database_name'
+
+# Execute the query to fetch all table names in the specified database
+list_tables_query = f"SHOW TABLES IN {database_name}"
+tables_df = conn.cursor().execute(list_tables_query).as_pandas()
+
+# Convert the pandas DataFrame to a Polars DataFrame
+tables_pl = pl.from_pandas(tables_df)
+
+# Define the regex pattern
+regex_pattern = r'^B_account_\d{4}_\d{2}$'
+
+# Filter the DataFrame for table names that match the regex pattern
+# Since Polars does not support regex filtering directly, we perform the operation outside of the DataFrame
+filtered_table_names = [name for name in tables_pl['tab_name'].to_list() if re.match(regex_pattern, name)]
+
+# For demonstration, let's assume we fetch and concatenate data from all filtered tables into a single Polars DataFrame
+# Note: Adjust the query according to your actual data structure and needs
+all_data_frames = []
+
+for table_name in filtered_table_names:
+    query = f"SELECT * FROM {database_name}.{table_name} LIMIT 10"  # Adjust the LIMIT as needed
+    df = conn.cursor().execute(query).as_pandas()  # Fetch data with PyAthena and convert to pandas DataFrame
+    df_pl = pl.from_pandas(df)  # Convert pandas DataFrame to Polars DataFrame
+    all_data_frames.append(df_pl)
+
+# Concatenate all fetched data into a single Polars DataFrame
+final_df = pl.concat(all_data_frames)
+
+# Save the final Polars DataFrame to a Parquet file
+final_df.write_parquet('filtered_data.parquet')
+
+
+
+
+from pyathena import connect
+import pandas as pd
+
+# Connect to Athena using the appropriate S3 staging directory and AWS region
+conn = connect(s3_staging_dir='s3://your_s3_bucket/path/to/',
+               region_name='your_aws_region')
+
+# Specify the Athena database
+database_name = 'your_database_name'
+
+# Query to fetch all table names in the specified database
+list_tables_query = f"SHOW TABLES IN {database_name}"
+tables_df = pd.read_sql(list_tables_query, conn)
+
+# Regular expression pattern to filter tables
+regex_pattern = r'^B_account_\d{4}_\d{2}$'
+
+# Filter table names based on the regex pattern
+filtered_table_names = tables_df[tables_df['tab_name'].str.match(regex_pattern)]['tab_name']
+
+# Loop through each filtered table name and export data to a Parquet file
+for table_name in filtered_table_names:
+    print(f"Processing and exporting table: {table_name}")
+    query = f"SELECT * FROM {database_name}.{table_name}"
+    df = pd.read_sql(query, conn)
+    
+    # Define the Parquet file name
+    parquet_file_name = f"{table_name}.parquet"
+    
+    # Save the DataFrame as a Parquet file
+    df.to_parquet(parquet_file_name, engine='pyarrow')
+
+    print(f"Exported {table_name} to {parquet_file_name}")
+
+
+
+
+
+
+
+
+
+
+
+# Start building the UNION ALL query
+union_queries = []
+
+for table_name in filtered_table_names:
+    union_query = f"SELECT * FROM {database_name}.{table_name}"
+    union_queries.append(union_query)
+
+# Combine all union queries into a single query string with UNION ALL between them
+combined_union_query = " UNION ALL ".join(union_queries)
+
+# SQL to create a new Athena table with the combined data
+new_table_name = "combined_table"
+create_table_query = f"""
+CREATE TABLE {database_name}.{new_table_name}
+WITH (
+    format = 'Parquet',
+    external_location = 's3://your_s3_bucket/path/to/{new_table_name}/'
+) AS
+{combined_union_query}
+"""
+
+# Execute the query to create the new table
+print(f"Creating new table: {new_table_name} with combined data")
+conn.cursor().execute(create_table_query)
+print(f"New table {new_table_name} created successfully.")
+
+
+
+
+
+
+
+from pyathena import connect
+import pandas as pd
+
+# Initialize an empty DataFrame for aggregating data
+combined_df = pd.DataFrame()
+
+# Loop through each filtered table name, fetch the data, and append it to the combined DataFrame
+for table_name in filtered_table_names:
+    print(f"Fetching data from table: {table_name}")
+    query = f"SELECT * FROM {database_name}.{table_name}"
+    df = pd.read_sql(query, conn)
+    combined_df = pd.concat([combined_df, df], ignore_index=True)
+
+# Save the combined DataFrame to a single Parquet file
+combined_parquet_file_name = "combined_data.parquet"
+combined_df.to_parquet(combined_parquet_file_name, engine='pyarrow')
+print(f"All data exported to {combined_parquet_file_name}")
+

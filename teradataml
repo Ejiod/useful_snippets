@@ -654,3 +654,26 @@ combined_parquet_file_name = "combined_data.parquet"
 combined_df.to_parquet(combined_parquet_file_name, engine='pyarrow')
 print(f"All data exported to {combined_parquet_file_name}")
 
+
+
+
+
+
+# Assuming 'filtered_table_names', 'database_name', and 'conn' are already defined
+
+table_columns = {}  # Dictionary to hold table names as keys and their columns as values
+
+for table_name in filtered_table_names:
+    query = f"DESCRIBE {database_name}.{table_name}"
+    try:
+        df = pd.read_sql(query, conn)
+        # The column names might be in the 'column_name' column depending on the query response format
+        # Adjust the column identifier as per your database's DESCRIBE output
+        columns = df['column_name'].tolist() if 'column_name' in df else df['Column'].tolist()
+        table_columns[table_name] = columns
+    except Exception as e:
+        print(f"Error fetching columns for table {table_name}: {e}")
+
+# Now 'table_columns' dictionary will have all the table names as keys and their columns as values
+
+

@@ -659,6 +659,20 @@ print(f"All data exported to {combined_parquet_file_name}")
 
 
 
+
+union_queries = []
+
+for table_name, cols in table_columns.items():
+    # Construct select clause with NULL for missing columns
+    select_clause = ', '.join([f'"{col}"' if col in cols else f'NULL AS "{col}"' for col in all_columns])
+    union_query = f"SELECT {select_clause} FROM {database_name}.{table_name}"
+    union_queries.append(union_query)
+
+combined_union_query = " UNION ALL ".join(union_queries)
+
+
+
+
 # Assuming 'filtered_table_names', 'database_name', and 'conn' are already defined
 
 table_columns = {}  # Dictionary to hold table names as keys and their columns as values
@@ -675,5 +689,30 @@ for table_name in filtered_table_names:
         print(f"Error fetching columns for table {table_name}: {e}")
 
 # Now 'table_columns' dictionary will have all the table names as keys and their columns as values
+
+
+
+
+
+
+
+
+def fetch_columns_for_table(table_name, conn):
+    query = f"DESCRIBE {database_name}.{table_name}"
+    try:
+        df = pd.read_sql(query, conn)
+        # The column names might be in the 'Column' column depending on the query response format
+        columns = df['column_name'].tolist() if 'column_name' in df else df['Column'].tolist()
+        return columns
+    except Exception as e:
+        print(f"Error fetching columns for table {table_name}: {e}")
+        return []
+
+table_columns = {table_name: fetch_columns_for_table(table_name, conn) for table_name in filtered_table_names}
+
+
+
+common_columns = set.intersection(*map(set, table_columns.values()))
+all_columns = set.union(*map(set, table_columns.values()))
 
 

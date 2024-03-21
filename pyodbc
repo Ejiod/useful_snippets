@@ -68,3 +68,71 @@ for table_name, df in dataframes.items():
 # Close the Teradata connection
 teradataml.remove_context()
 
+--ENGINE--CONNECTION
+
+from sqlalchemy import create_engine, text
+import pandas as pd
+import datetime
+
+def clean_teradata_table_and_addresses(table_name, connection_details):
+    """
+    Connects to a Teradata database, reads the specified table in chunks,
+    performs detailed cleaning operations on address and postcode fields,
+    logs operations based on arbitrary values, and returns the cleaned DataFrame.
+    """
+    # Connection string built from connection details
+    conn_str = (
+        f"teradatasql://{connection_details['user']}"
+        f":{connection_details['password']}@"
+        f"{connection_details['host']}/"
+        f"{connection_details['dbname']}?charset=UTF8"
+    )
+    
+    # Establish connection to the Teradata database
+    engine = create_engine(conn_str)
+    connection = engine.connect()
+
+    # Initialize an empty DataFrame for the cleaned data
+    cleaned_df = pd.DataFrame()
+    
+    for chunk_df in pd.read_sql(f"SELECT * FROM {table_name}", engine, chunksize=10000):
+        # Apply address cleaning logic to each chunk
+        chunk_df = clean_addresses(chunk_df)
+        
+        # Append the cleaned chunk to the main DataFrame
+        cleaned_df = pd.concat([cleaned_df, chunk_df], ignore_index=True)
+
+    # Log a specific operation to the sp_logs table
+    # Here, you can specify arbitrary values for your logging
+    log_operation = 'clean_complete'  # Example operation
+    log_timestamp = datetime.datetime.now()  # Current timestamp
+    arbitrary_batch_num = 999  # An arbitrary batch number or identifier
+    
+    # Insert log entry into sp_logs
+    log_query = text(
+        "INSERT INTO sp_logs (table_name, operation, batch_num, timestamp) "
+        "VALUES (:table_name, :operation, :batch_num, :timestamp)"
+    )
+    connection.execute(log_query, table_name=table_name, operation=log_operation, batch_num=arbitrary_batch_num, timestamp=log_timestamp)
+
+    # Close the connection
+    connection.close()
+
+    return cleaned_df
+
+# Define your clean_addresses function here, as previously provided.
+
+# Example usage
+connection_details = {
+    'user': 'YOUR_USERNAME',
+    'password': 'YOUR_PASSWORD',
+    'host': 'YOUR_DB_HOST',
+    'dbname': 'YOUR_DB_NAME'
+}
+table_name = 'YOUR_TABLE_NAME'
+
+# Clean the table and obtain the cleaned DataFrame
+cleaned_df = clean_teradata_table_and_addresses(table_name, connection_details)
+
+
+

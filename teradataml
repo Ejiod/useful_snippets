@@ -716,3 +716,54 @@ common_columns = set.intersection(*map(set, table_columns.values()))
 all_columns = set.union(*map(set, table_columns.values()))
 
 
+
+
+import pandas as pd
+import re
+import datetime
+
+def clean_addresses(df):
+    """
+    Cleans address data and formats UK postcodes within a pandas DataFrame using regular expressions.
+    
+    :param df: DataFrame containing the address data.
+    :return: DataFrame with cleaned address data.
+    """
+    # Define regex patterns
+    whitespace_regex = r'\s+'
+    non_printable_regex = r'[^\x20-\x7E]'
+    
+    # Clean and format address lines
+    address_columns = ['a_address_line_1', 'a_address_line_2', 'a_address_line_3', 'a_address_line_4', 'a_address_line_5']
+    for col in address_columns:
+        if col in df.columns:
+            # Strip leading/trailing whitespace and replace internal multiple spaces with a single space
+            df[col] = df[col].astype(str).str.replace(whitespace_regex, ' ', regex=True)
+            # Remove non-printable characters
+            df[col] = df[col].apply(lambda x: re.sub(non_printable_regex, '', x))
+            # Capitalize the first letter of each word
+            df[col] = df[col].str.title()
+
+    # Format postcodes according to UK postcode pattern using a dedicated function
+    if 'a_postcode' in df.columns:
+        df['a_postcode'] = df['a_postcode'].apply(lambda x: format_uk_postcode(str(x).upper()))
+
+    return df
+
+def format_uk_postcode(postcode):
+    """
+    Formats a given UK postcode using regular expressions.
+    
+    :param postcode: A string representing a UK postcode.
+    :return: A string representing the formatted postcode.
+    """
+    # UK postcode regex pattern
+    uk_postcode_regex = r'([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9]?[A-Za-z]))))[0-9][A-Za-z]{2})'
+    match = re.match(uk_postcode_regex, postcode.replace(' ', ''))
+    if match:
+        # Reformat the postcode if it's valid but not in the standard format
+        postcode = re.sub(r'^(.*?)([0-9][A-Z]{2})$', r'\1 \2', postcode)
+    return postcode
+
+
+

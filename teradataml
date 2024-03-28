@@ -765,5 +765,26 @@ def format_uk_postcode(postcode):
         postcode = re.sub(r'^(.*?)([0-9][A-Z]{2})$', r'\1 \2', postcode)
     return postcode
 
+OR f 'a_postcode' in df.columns:
+    df['a_postcode'] = df['a_postcode'].apply(lambda x: x.upper().replace(' ', ''))  # Normalize by removing spaces and converting to upper case
+    df['a_postcode'] = df['a_postcode'].apply(lambda x: re.match(uk_postcode_regex, x).group(0) if re.match(uk_postcode_regex, x) else x)  # Validate postcode
+    df['a_postcode'] = df['a_postcode'].apply(lambda x: x[:-3] + ' ' + x[-3:] if re.match(uk_postcode_regex, x) else x)  # Reinsert space correctly
+
+
+
+# Compile the UK postcode regex pattern for efficiency
+uk_postcode_pattern = re.compile(r'([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9]?[A-Za-z]))))[0-9][A-Za-z]{2})')
+
+def validate_and_format_postcode(postcode):
+    # Remove spaces and convert to uppercase for uniformity
+    postcode = postcode.upper().replace(' ', '')
+    match = uk_postcode_pattern.match(postcode)
+    if match:
+        # Correctly format the postcode by inserting a single space
+        return postcode[:-3] + ' ' + postcode[-3:]
+    return postcode  # Return the original postcode if no match
+
+# Apply the function to the 'a_postcode' column
+df['a_postcode'] = df['a_postcode'].apply(validate_and_format_postcode)
 
 

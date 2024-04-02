@@ -360,3 +360,44 @@ for chunk in chunker(acc_list, 1000):
 
 # Close the connection
 connection.close()
+
+
+File operation
+import os
+import msoffcrypto
+import io
+import pandas as pd
+import shutil  # For file operations like move
+
+# Directory containing the Excel files
+directory = "path/to/excel/files"
+
+# Password for encryption
+password = "yourpassword"
+
+for filename in os.listdir(directory):
+    if filename.endswith(".xlsx"):
+        original_filepath = os.path.join(directory, filename)
+        
+        # Load the Excel file into a DataFrame
+        df = pd.read_excel(original_filepath)
+        
+        # Create an in-memory output file for the encrypted version
+        output = io.BytesIO()
+        df.to_excel(output, index=False)
+        output.seek(0)
+        
+        # Temporary encrypted file path
+        temp_encrypted_filepath = os.path.join(directory, f"temp_encrypted_{filename}")
+        
+        # Encrypt the file and save it as a temporary file
+        with open(temp_encrypted_filepath, "wb") as protected_file:
+            office_file = msoffcrypto.OfficeFile(output)
+            office_file.load_key(password=password)
+            office_file.encrypt(protected_file)
+        
+        # Replace the original file with the encrypted one
+        shutil.move(temp_encrypted_filepath, original_filepath)
+        
+        print(f"Encrypted and replaced {filename}")
+

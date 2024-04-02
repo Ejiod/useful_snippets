@@ -401,3 +401,38 @@ for filename in os.listdir(directory):
         
         print(f"Encrypted and replaced {filename}")
 
+
+
+from msoffcrypto.format.ooxml import OOXMLFile
+import os
+
+# Directory containing the Excel files
+directory = "path/to/excel/files"
+
+# Password for encryption
+password = "yourpassword"
+
+for filename in os.listdir(directory):
+    if filename.endswith(".xlsx"):
+        file_path = os.path.join(directory, filename)
+        
+        # Open the current Excel file
+        plain = open(file_path, "rb")
+        file = OOXMLFile(plain)
+        
+        # Temporary encrypted file path
+        temp_encrypted_filepath = os.path.join(directory, f"temp_encrypted_{filename}")
+        
+        # Encrypt and save the file
+        with open(temp_encrypted_filepath, "wb") as encrypted_file:
+            file.encrypt(password, encrypted_file)
+        
+        # Close the original file
+        plain.close()
+        
+        # Replace the original file with the encrypted one
+        os.remove(file_path)  # Delete the original file
+        os.rename(temp_encrypted_filepath, file_path)  # Rename the encrypted file to the original file name
+        
+        print(f"Encrypted and replaced {filename}")
+

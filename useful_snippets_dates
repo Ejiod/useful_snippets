@@ -438,7 +438,7 @@ for filename in os.listdir(directory):
 
 
 
-
+= ((A2^2 * A4 * (1 - A4)) / (A3^2)) / (1 + ((A2^2 * A4 * (1 - A4)) / (A3^2 * A5)))
 
 
 

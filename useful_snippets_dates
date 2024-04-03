@@ -436,3 +436,27 @@ for filename in os.listdir(directory):
         
         print(f"Encrypted and replaced {filename}")
 
+
+
+
+
+
+
+def clean(df):
+    
+    address_columns = ['']
+
+    # Function to shift non-empty values to the left in each row
+    def shift_values(row):
+        filtered_values = [value for value in row if value not in ('', None)]
+        num_empty_values = len(row) - len(filtered_values)
+        return filtered_values + [''] * num_empty_values
+
+    df[address_columns] = df[address_columns].apply(lambda row: shift_values(row), axis=1, result_type='expand')
+    df[address_columns].columns = address_columns
+
+    return df
+
+
+
+

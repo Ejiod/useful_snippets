@@ -470,4 +470,9 @@ for column, dtype in df.dtypes.items():
 print(dtype_mapping)
 
 
+for column, dtype in column_definitions.items():
+    if "CHAR" in dtype:
+        length = int(dtype.split('(')[1].split(')')[0])  # Extracts the length from CHAR definitions
+        column_definitions[column] = VARCHAR(length)
 
+# Now column_definitions has VARCHAR types with the original lengths

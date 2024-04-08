@@ -471,17 +471,3 @@ print(dtype_mapping)
 
 
 
-
-
-
-pattern = re.compile(r'\s+(\w+)\s+(\w+\(\d+\))')
-
-# Function to apply regex on the ddl_text column and convert matches to a dictionary
-def extract_column_definitions(text):
-    matches = pattern.findall(text)
-    return {match[0]: match[1] for match in matches}
-
-# Assuming the DDL statement is in the first row, first cell of the ddl_text column
-column_definitions = extract_column_definitions(df['ddl_text'].iloc[0])
-
-print(column_definitions)

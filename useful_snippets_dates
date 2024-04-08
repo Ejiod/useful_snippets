@@ -454,5 +454,18 @@ def clean(df):
     return df
 
 
+for column, dtype in df.dtypes.items():
+    if dtype == 'object' or dtype == pd.StringDtype():
+        dtype_mapping[column] = String(255)  # Maps to VARCHAR in SQL
+    elif pd.api.types.is_datetime64_any_dtype(dtype):
+        if df[column].dt.time.eq(pd.Timestamp('00:00').time).all():
+            dtype_mapping[column] = Date()
+        else:
+            dtype_mapping[column] = DateTime()
+    elif pd.api.types.is_float_dtype(dtype):
+        dtype_mapping[column] = DECIMAL(precision=10, scale=5)
+    elif pd.api.types.is_integer_dtype(dtype):
+        dtype_mapping[column] = Integer()
 
+print(dtype_mapping)
 

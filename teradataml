@@ -718,31 +718,50 @@ all_columns = set.union(*map(set, table_columns.values()))
 
 
 
-from sqlalchemy import create_engine
 
-# Establish your database connection
-engine = create_engine('teradatasql://user:password@host/database_name')
 
-for index, row in df_tables.iterrows():
-    table_name = row['table_name']
-    pi_column = row['pi_column']
-    
-    # Construct the CTAS statement
-    if pd.notna(pi_column):
-        ctas_query = f"""
-        CREATE TABLE {table_name}_new
-        AS (SELECT * FROM {table_name})
-        WITH DATA PRIMARY INDEX ({pi_column});
-        """
-    else:
-        ctas_query = f"""
-        CREATE TABLE {table_name}_new
-        AS (SELECT * FROM {table_name})
-        WITH DATA;
-        """
-    
-    # Execute the CTAS command
-    with engine.connect() as conn:
-        conn.execute(ctas_query)
+# SQL to fetch primary index columns
+pi_sql = f"""
+SELECT ColumnName
+FROM DBC.IndexesV
+WHERE TableName = '{source_table}'
+AND DatabaseName = '{database_name}'
+AND IndexType = 'P'
+ORDER BY IndexNumber, ColumnPosition;
+"""
+
+# Fetch the PI columns into a DataFrame
+df_pi = pd.read_sql(pi_sql, engine)
+
+# Check if PI columns were found and construct the CTAS query accordingly
+if not df_pi.empty:
+    # Wrap column names in double quotes for the SQL statement
+    pi_columns = [f'"{col}"' for col in df_pi['ColumnName']]
+    # Construct the PRIMARY INDEX clause with the retrieved columns
+    primary_index_clause = f"PRIMARY INDEX ({', '.join(pi_columns)})"
+    ctas_query = f"""
+    CREATE TABLE {source_table}_new
+    AS (SELECT * FROM {source_table})
+    WITH DATA
+    {primary_index_clause};
+    """
+else:
+    # Construct the CTAS query without a PRIMARY INDEX clause
+    ctas_query = f"""
+    CREATE TABLE {source_table}_new
+    AS (SELECT * FROM {source_table})
+    WITH DATA;
+    """
+
+# The ctas_query is now ready to be executed or printed
+print(ctas_query)
+
+
+
+
+
+
+
+
 
 

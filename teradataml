@@ -718,44 +718,43 @@ all_columns = set.union(*map(set, table_columns.values()))
 
 
 
+from pyathena import connect
+import pandas as pd
 
+# Connect to Athena
+conn = connect(aws_access_key_id='YOUR_ACCESS_KEY',
+               aws_secret_access_key='YOUR_SECRET_KEY',
+               s3_staging_dir='s3://YOUR_S3_BUCKET/path/to/',
+               region_name='YOUR_AWS_REGION')
 
-# SQL to fetch primary index columns
-pi_sql = f"""
-SELECT ColumnName
-FROM DBC.IndexesV
-WHERE TableName = '{source_table}'
-AND DatabaseName = '{database_name}'
-AND IndexType = 'P'
-ORDER BY IndexNumber, ColumnPosition;
-"""
+# Define the schema
+schema = 'your_schema_name'
 
-# Fetch the PI columns into a DataFrame
-df_pi = pd.read_sql(pi_sql, engine)
+# Query to get all tables in the schema
+query = f"SHOW TABLES IN {schema}"
+tables = pd.read_sql(query, conn)
 
-# Check if PI columns were found and construct the CTAS query accordingly
-if not df_pi.empty:
-    # Wrap column names in double quotes for the SQL statement
-    pi_columns = [f'"{col}"' for col in df_pi['ColumnName']]
-    # Construct the PRIMARY INDEX clause with the retrieved columns
-    primary_index_clause = f"PRIMARY INDEX ({', '.join(pi_columns)})"
-    ctas_query = f"""
-    CREATE TABLE {source_table}_new
-    AS (SELECT * FROM {source_table})
-    WITH DATA
-    {primary_index_clause};
-    """
-else:
-    # Construct the CTAS query without a PRIMARY INDEX clause
-    ctas_query = f"""
-    CREATE TABLE {source_table}_new
-    AS (SELECT * FROM {source_table})
-    WITH DATA;
-    """
+# List to hold tables containing the desired columns
+tables_with_column = []
 
-# The ctas_query is now ready to be executed or printed
-print(ctas_query)
+# Loop through tables to check for column names starting with 'xyzaa'
+for table in tables['tab_name']:  # Ensure the column name 'tab_name' is correct based on output
+    try:
+        # Query to get the schema (column names) of the table
+        col_query = f"SHOW COLUMNS IN {schema}.{table}"
+        columns = pd.read_sql(col_query, conn)
+        
+        # Check for columns starting with 'xyzaa'
+        filtered_columns = columns[columns['field'].str.startswith('xyzaa')]
+        
+        if not filtered_columns.empty:
+            tables_with_column.append((table, filtered_columns['field'].tolist()))
+    except Exception as e:
+        print(f"Error processing table {table}: {str(e)}")
 
+# Print tables that contain columns starting with 'xyzaa'
+for table, cols in tables_with_column:
+    print(f"Table '{table}' contains columns: {cols}")
 
 
 

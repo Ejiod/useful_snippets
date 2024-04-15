@@ -715,11 +715,13 @@ table_columns = {table_name: fetch_columns_for_table(table_name, conn) for table
 common_columns = set.intersection(*map(set, table_columns.values()))
 all_columns = set.union(*map(set, table_columns.values()))
 
-
-
-
 from pyathena import connect
 import pandas as pd
+
+# Function to split the data into batches
+def batch_data(data, batch_size):
+    for i in range(0, len(data), batch_size):
+        yield data[i:i + batch_size]
 
 # Connect to Athena
 conn = connect(aws_access_key_id='YOUR_ACCESS_KEY',
@@ -734,27 +736,36 @@ schema = 'your_schema_name'
 query = f"SHOW TABLES IN {schema}"
 tables = pd.read_sql(query, conn)
 
-# List to hold tables containing the desired columns
-tables_with_column = []
+# Define batch size
+batch_size = 10  # Adjusted to process only 10 tables
 
-# Loop through tables to check for column names starting with 'xyzaa'
-for table in tables['tab_name']:  # Ensure the column name 'tab_name' is correct based on output
-    try:
-        # Query to get the schema (column names) of the table
-        col_query = f"SHOW COLUMNS IN {schema}.{table}"
-        columns = pd.read_sql(col_query, conn)
-        
-        # Check for columns starting with 'xyzaa'
-        filtered_columns = columns[columns['field'].str.startswith('xyzaa')]
-        
-        if not filtered_columns.empty:
-            tables_with_column.append((table, filtered_columns['field'].tolist()))
-    except Exception as e:
-        print(f"Error processing table {table}: {str(e)}")
+# Process each batch
+# Here, we specifically process only the first batch by breaking after the first loop
+for batch_tables in batch_data(tables['tab_name'], batch_size):
+    # Construct a query to fetch columns for all tables in the batch
+    column_queries = []
+    for table in batch_tables:
+        column_queries.append(f"SHOW COLUMNS IN {schema}.{table}")
 
-# Print tables that contain columns starting with 'xyzaa'
-for table, cols in tables_with_column:
-    print(f"Table '{table}' contains columns: {cols}")
+    # Since SHOW COLUMNS cannot be combined into a single query directly with UNION ALL,
+    # we need to execute them one by one and combine results manually
+    batch_columns = pd.DataFrame()
+    for col_query in column_queries:
+        try:
+            columns = pd.read_sql(col_query, conn)
+            columns['table_name'] = table  # Add table name to track back to the table
+            batch_columns = pd.concat([batch_columns, columns], ignore_index=True)
+        except Exception as e:
+            print(f"Error processing columns for table {table}: {str(e)}")
+
+    # Filter columns that start with 'xyzaa' in this batch
+    filtered_columns = batch_columns[batch_columns['field'].str.startswith('xyzaa')]
+    for table, group in filtered_columns.groupby('table_name'):
+        print(f"Table '{table}' contains columns starting with 'xyzaa': {group['field'].tolist()}")
+
+    # Break after processing the first batch to only handle 10 tables
+    break
+
 
 
 

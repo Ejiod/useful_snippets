@@ -718,33 +718,37 @@ all_columns = set.union(*map(set, table_columns.values()))
 
 
 
-
-
-
-import awswrangler as wr
 import pandas as pd
+from sqlalchemy import create_engine
+from sqlalchemy.sql import text
 
 # Configuration
-s3_output = 's3://YOUR_S3_BUCKET/path/to/output/'
+teradata_conn_str = 'teradatasql://user:password@host/database'
 schema = 'your_schema_name'
-database = schema  # In Athena, the database is generally the schema name
 
-# Session configuration for AWS Data Wrangler
-session = wr.Session(aws_access_key_id='YOUR_ACCESS_KEY',
-                     aws_secret_access_key='YOUR_SECRET_KEY',
-                     s3_output_path=s3_output)
+# Create a connection to Teradata
+engine = create_engine(teradata_conn_str)
 
-# Get the first 10 tables
-tables_df = session.athena.read_sql_query(f"SHOW TABLES IN {schema}", database)
-tables = tables_df.iloc[:, 0].tolist()  # Adjust column selection based on actual results
+# Connect to the database
+with engine.connect() as conn:
 
-# Process only the first 10 tables
-for table in tables[:10]:
-    # Query to get columns from the table
-    columns_query = f"SHOW COLUMNS IN {schema}.{table}"
-    columns_df = session.athena.read_sql_query(columns_query, database)
+    # Get the first 10 tables in the schema
+    tables_query = f"SELECT TableName FROM DBC.TablesV WHERE DatabaseName = '{schema}' AND TableKind = 'T'"
+    tables_df = pd.read_sql(tables_query, conn)
+    tables = tables_df['TableName'].tolist()
 
-    # Filter columns starting with 'xyzaa'
-    filtered_columns = columns_df[columns_df['Field'].str.startswith('xyzaa')]['Field'].tolist()
-    if filtered_columns:
-        print(f"Table '{table}' contains columns starting with 'xyzaa': {filtered_columns}")
+    # Process only the first 10 tables
+    for table in tables[:10]:
+        # Query to get columns from the table
+        columns_query = text(f"""
+            SELECT ColumnName 
+            FROM DBC.ColumnsV 
+            WHERE DatabaseName = '{schema}' AND TableName = :table
+        """)
+        columns_df = pd.read_sql(columns_query, conn, params={'table': table})
+
+        # Filter columns starting with 'xyzaa'
+        filtered_columns = columns_df[columns_df['ColumnName'].str.startswith('xyzaa')]['ColumnName'].tolist()
+        if filtered_columns:
+            print(f"Table '{table}' contains columns starting with 'xyzaa': {filtered_columns}")
+

@@ -721,70 +721,30 @@ all_columns = set.union(*map(set, table_columns.values()))
 
 
 
-
-import boto3
-import time
+import awswrangler as wr
 import pandas as pd
-
-def start_query_execution(database, query, s3_output):
-    client = boto3.client('athena')
-    response = client.start_query_execution(
-        QueryString=query,
-        QueryExecutionContext={
-            'Database': database
-        },
-        ResultConfiguration={
-            'OutputLocation': s3_output
-        }
-    )
-    return response['QueryExecutionId']
-
-def check_query_status(query_execution_id):
-    client = boto3.client('athena')
-    response = client.get_query_execution(QueryExecutionId=query_execution_id)
-    return response['QueryExecution']['Status']['State']
-
-def get_query_results(query_execution_id):
-    client = boto3.client('athena')
-    results = []
-    paginator = client.get_paginator('get_query_results')
-    page_iterator = paginator.paginate(QueryExecutionId=query_execution_id)
-    for page in page_iterator:
-        for row in page['ResultSet']['Rows']:
-            results.append(row['Data'])
-    return results
 
 # Configuration
 s3_output = 's3://YOUR_S3_BUCKET/path/to/output/'
 schema = 'your_schema_name'
 database = schema  # In Athena, the database is generally the schema name
 
+# Session configuration for AWS Data Wrangler
+session = wr.Session(aws_access_key_id='YOUR_ACCESS_KEY',
+                     aws_secret_access_key='YOUR_SECRET_KEY',
+                     s3_output_path=s3_output)
+
 # Get the first 10 tables
-tables_query = f"SHOW TABLES IN {schema}"
-tables_query_id = start_query_execution(database, tables_query, s3_output)
-
-# Wait for the tables query to complete
-while check_query_status(tables_query_id) not in ['SUCCEEDED', 'FAILED', 'CANCELLED']:
-    time.sleep(5)  # Sleep for a bit before checking the status again
-
-# Fetch the results of the tables query
-table_results = get_query_results(tables_query_id)
-tables = [row[0]['VarCharValue'] for row in table_results[1:]]  # Skip header
+tables_df = session.athena.read_sql_query(f"SHOW TABLES IN {schema}", database)
+tables = tables_df.iloc[:, 0].tolist()  # Adjust column selection based on actual results
 
 # Process only the first 10 tables
 for table in tables[:10]:
+    # Query to get columns from the table
     columns_query = f"SHOW COLUMNS IN {schema}.{table}"
-    columns_query_id = start_query_execution(database, columns_query, s3_output)
-
-    # Wait for the columns query to complete
-    while check_query_status(columns_query_id) not in ['SUCCEEDED', 'FAILED', 'CANCELLED']:
-        time.sleep(5)
-
-    # Fetch the results of the columns query
-    column_results = get_query_results(columns_query_id)
-    columns = [row[0]['VarCharValue'] for row in column_results[1:]]  # Skip header
+    columns_df = session.athena.read_sql_query(columns_query, database)
 
     # Filter columns starting with 'xyzaa'
-    filtered_columns = [column for column in columns if column.startswith('xyzaa')]
+    filtered_columns = columns_df[columns_df['Field'].str.startswith('xyzaa')]['Field'].tolist()
     if filtered_columns:
         print(f"Table '{table}' contains columns starting with 'xyzaa': {filtered_columns}")

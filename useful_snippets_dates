@@ -476,3 +476,70 @@ for column, dtype in column_definitions.items():
         column_definitions[column] = VARCHAR(length)
 
 # Now column_definitions has VARCHAR types with the original lengths
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+from pyathena import connect
+import time
+
+# Configuration
+conn = connect(xxxx')
+
+batch_size = 50
+sleep_time = 60  # in seconds
+
+# Load the progress log if exists, otherwise initialize it
+try:
+    processed_tables = pd.read_csv('processed_tables.csv')['table_name'].tolist()
+except FileNotFoundError:
+    processed_tables = []
+
+# Fetch all tables
+query_show_tables = "SHOW TABLES"
+tables_df = pd.read_sql(query_show_tables, conn)
+
+# Filter out tables that have already been processed
+tables_df = tables_df[~tables_df['tab_name'].isin(processed_tables)]
+
+all_describe_results = pd.DataFrame()
+
+# Processing loop
+for i in range(0, len(tables_df), batch_size):
+    batch_tables = tables_df.iloc[i:i + batch_size]
+    for table in batch_tables['tab_name']:
+        describe_query = f"DESCRIBE {table}"
+        try:
+            cursor = conn.cursor()
+            cursor.execute(describe_query)
+            data = cursor.fetchall()  # Fetch data from cursor
+            describe_results = pd.DataFrame(data, columns=['col_name'])
+            describe_results['table_name'] = table  # Append the table name to each row
+
+            all_describe_results = pd.concat([all_describe_results, describe_results], ignore_index=True)
+
+            processed_tables.append(table)
+            print(f"Processed {table}")
+        except Exception as e:
+            print(f"Error processing {table}: {e}")
+
+        time.sleep(5)  # Short sleep within batch
+
+    # Save checkpoint
+    pd.DataFrame({'table_name': processed_tables}).to_csv('processed_tables.csv')
+    all_describe_results.to_csv(f'describe_results_up_to_{i + batch_size}.csv')
+    print(f"Checkpoint saved after processing up to index {i + batch_size}")
+    time.sleep(sleep_time)  # Sleep between batches
+
+# Final save
+all_describe_results.to_csv('final_describe_results.csv')
+print("All data processed and saved.")

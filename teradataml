@@ -716,39 +716,46 @@ common_columns = set.intersection(*map(set, table_columns.values()))
 all_columns = set.union(*map(set, table_columns.values()))
 
 
-
-
+import time
 import pandas as pd
-from sqlalchemy import create_engine
-from sqlalchemy.sql import text
+import sqlalchemy as sa
 
-# Configuration
-teradata_conn_str = 'teradatasql://user:password@host/database'
-schema = 'your_schema_name'
+# Define the schema
+schema = 'detail'
 
-# Create a connection to Teradata
-engine = create_engine(teradata_conn_str)
+# Create a connection for Athena
+conn = sa.create_engine('your_connection_string_here')
 
-# Connect to the database
-with engine.connect() as conn:
+# Read the data and process in chunks
+file_path = 'path_to_your_excel_file.xlsx'
+chunk_size = 50
+sleep_time = 120  # 2 minutes in seconds
 
-    # Get the first 10 tables in the schema
-    tables_query = f"SELECT TableName FROM DBC.TablesV WHERE DatabaseName = '{schema}' AND TableKind = 'T'"
-    tables_df = pd.read_sql(tables_query, conn)
-    tables = tables_df['TableName'].tolist()
+tables = pd.read_excel(file_path, sheet_name='acc')  # Read your Excel file
+total_rows = len(tables)
 
-    # Process only the first 10 tables
-    for table in tables[:10]:
-        # Query to get columns from the table
-        columns_query = text(f"""
-            SELECT ColumnName 
-            FROM DBC.ColumnsV 
-            WHERE DatabaseName = '{schema}' AND TableName = :table
-        """)
-        columns_df = pd.read_sql(columns_query, conn, params={'table': table})
+# Iterate over the data in chunks
+for start_row in range(0, total_rows, chunk_size):
+    end_row = min(start_row + chunk_size, total_rows)
+    chunk = tables[start_row:end_row]
 
-        # Filter columns starting with 'xyzaa'
-        filtered_columns = columns_df[columns_df['ColumnName'].str.startswith('xyzaa')]['ColumnName'].tolist()
-        if filtered_columns:
-            print(f"Table '{table}' contains columns starting with 'xyzaa': {filtered_columns}")
+    # Process the chunk
+    # Your code for processing goes here (similar to what is shown in the code snippet)
+    # Example:
+    tables_with_column = []
+    for table in chunk['tab_name']:
+        try:
+            col_query = f"SHOW COLUMNS IN {schema}.{table}"
+            columns = pd.read_sql(col_query, conn)
+            columns = [col.lower() for col in columns.columns]
+            if 'your_column_name' in columns:
+                tables_with_column.append(table)
+        except Exception as e:
+            print(f"Error processing table {table}: {str(e)}")
 
+    # Print results or perform other actions
+    print("Processed tables:", tables_with_column)
+
+    # Sleep for 2 minutes
+    print("Sleeping for 2 minutes...")
+    time.sleep(sleep_time)

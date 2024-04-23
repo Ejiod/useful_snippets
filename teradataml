@@ -694,24 +694,34 @@ for table_name in filtered_table_names:
 
 
 
+import awswrangler as wr
 
+s3_bucket = "s3://your-s3-bucket/path/to/data/"  # S3 bucket and path
+column_name = "desired_column_name"  # Column to search for
 
+# List all files in the specified S3 path
+s3_objects = wr.s3.list_objects(s3_bucket)
 
-def fetch_columns_for_table(table_name, conn):
-    query = f"DESCRIBE {database_name}.{table_name}"
-    try:
-        df = pd.read_sql(query, conn)
-        # The column names might be in the 'Column' column depending on the query response format
-        columns = df['column_name'].tolist() if 'column_name' in df else df['Column'].tolist()
-        return columns
-    except Exception as e:
-        print(f"Error fetching columns for table {table_name}: {e}")
-        return []
+files_with_column = []
 
-table_columns = {table_name: fetch_columns_for_table(table_name, conn) for table_name in filtered_table_names}
+# Loop through each S3 object and read only the metadata to get column names
+for s3_object in s3_objects:
+    # Check if the file is CSV or Parquet
+    if s3_object.endswith(".csv"):
+        df = wr.s3.read_csv(s3_object, nrows=0)  # Read only the column names
+    elif s3_object.endswith(".parquet"):
+        df = wr.s3.read_parquet_metadata(s3_object)  # Read only the metadata
+    else:
+        continue  # Skip unsupported file formats
+    
+    # Check if the desired column exists in the metadata
+    if column_name in df.columns:
+        files_with_column.append(s3_object)
 
-
-
-common_columns = set.intersection(*map(set, table_columns.values()))
-all_columns = set.union(*map(set, table_columns.values()))
-
+# Output the result
+if files_with_column:
+    print(f"The column '{column_name}' was found in the following files:")
+    for file in files_with_column:
+        print(file)
+else:
+    print(f"The column '{column_name}' was not found in any of the inspected files.")

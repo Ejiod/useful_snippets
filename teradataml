@@ -729,29 +729,33 @@ else:
 
 
 
-
-
+import boto3
 import awswrangler as wr
 
-s3_bucket_path = "s3://your-s3-bucket/path/to/parquet-files/"  # S3 bucket and path
+# Define your S3 bucket path
+s3_bucket_path = "s3://your-s3-bucket/path/to/metadata/"  # Your S3 bucket and path
 
-# List all Parquet files in the specified S3 path
-parquet_files = wr.s3.list_objects(s3_bucket_path)
+# List all files in the specified S3 path
+s3_files = wr.s3.list_objects(s3_bucket_path)
 
-# Retrieve the schema (columns and data types) from each Parquet file
+# Initialize a dictionary to store column names from each metadata file
 columns_per_file = {}
 
-for parquet_file in parquet_files:
-    if parquet_file.endswith(".parquet"):
-        # Read only the Parquet metadata to get the schema
-        schema = wr.s3.read_parquet_metadata(parquet_file)
-        
-        # Extract column names from the schema
-        column_names = [field.name for field in schema.schema]
-        
-        columns_per_file[parquet_file] = column_names
+# Loop through each S3 file and read the text metadata
+s3_client = boto3.client("s3")
 
-# Output the columns found in each Parquet file
+for s3_file in s3_files:
+    # Only consider files with ".txt.metadata" extension
+    if s3_file.endswith(".txt.metadata"):
+        # Read the content of the text file
+        response = s3_client.get_object(Bucket=s3_bucket_path.split("s3://")[1], Key=s3_file)
+        text_content = response["Body"].read().decode("utf-8")
+        
+        # Extract column names from the text content
+        # Assuming each line contains a column name or other metadata
+        column_names = text_content.splitlines()  # Split text into lines
+        columns_per_file[s3_file] = column_names
+
+# Output the column names found in each metadata file
 for file, columns in columns_per_file.items():
     print(f"Columns in {file}: {columns}")
-

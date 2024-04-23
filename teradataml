@@ -1,31 +1,28 @@
-import os
 import pandas as pd
+import os
 
+# List of text files to read
+text_files = ["aaaa.txt", "bbbb.txt", "cccc.txt"]  # Add all file names here
 
-# Specify the folder where your Excel files are located
-folder_path = 'your_folder_path_here'
+# Initialize a list to store DataFrames
+dataframes = []
 
-# Initialize an empty list to store dataframes for each sheet
-all_dataframes = []
-
-# Iterate through all files in the folder
-for filename in os.listdir(folder_path):
-    if filename.endswith('.xlsx'):  # Check if the file is an Excel file
-        file_path = os.path.join(folder_path, filename)
-        xls = pd.ExcelFile(file_path)
-        sheet_names = xls.sheet_names  # Get the names of all sheets in the Excel file
+# Loop through each text file and read it with pandas
+for file_name in text_files:
+    if os.path.exists(file_name):  # Ensure the file exists
+        # Read the text file into a DataFrame
+        df = pd.read_csv(file_name, sep=",", header=None)  # Default CSV format
         
-        for sheet_name in sheet_names:
-            df = pd.read_excel(file_path, sheet_name=sheet_name)  # Read the Excel sheet into a DataFrame
-            df['SheetName'] = sheet_name  # Add a new column for the sheet name
-            all_dataframes.append(df)
+        # You can process the DataFrame as needed here
+        dataframes.append(df)  # Add the DataFrame to the list
+    else:
+        print(f"File {file_name} does not exist.")  # Handle missing files
 
-# Combine all dataframes into one
-combined_data = pd.concat(all_dataframes, ignore_index=True)
+# Optionally, concatenate all DataFrames into one
+combined_df = pd.concat(dataframes, ignore_index=True)
 
-# Save the combined data to a new Excel file or do further processing as needed
-combined_data.to_excel('combined_data_with_sheet_names.xlsx', index=False)
-
+print("Combined DataFrame:")
+print(combined_df.head())  # Display the first few rows
 
 
 (?:(?!not\s+sent|not\s+issued))

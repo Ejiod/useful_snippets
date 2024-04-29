@@ -37,34 +37,59 @@ for table_name in filtered_table_names:
 for table_name, column_count in tables_with_column_counts:
     print(f"Table '{table_name}' has {column_count} columns.")
 
-import pandas as pd
-import os
 
-# List of text files to read
-text_files = ["aaaa.txt", "bbbb.txt", "cccc.txt"]  # Add all file names here
+import re
+import awswrangler as wr
 
-# Initialize a list to store DataFrames
-dataframes = []
+# Specify your database
+database_name = 'detail'
 
-# Loop through each text file and read it with pandas
-for file_name in text_files:
-    if os.path.exists(file_name):  # Ensure the file exists
-        # Read the text file into a DataFrame
-        df = pd.read_csv(file_name, sep=",", header=None)  # Default CSV format
-        
-        # You can process the DataFrame as needed here
-        dataframes.append(df)  # Add the DataFrame to the list
-    else:
-        print(f"File {file_name} does not exist.")  # Handle missing files
+# Regex pattern to match 't_account_' followed by a year and a month
+pattern = re.compile(r"t_account_\d{4}_\d{2}$")
 
-# Optionally, concatenate all DataFrames into one
-combined_df = pd.concat(dataframes, ignore_index=True)
+# SQL query to get all table names in the schema
+query = f"""
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = '{database_name}'
+AND table_name LIKE 't_account_%'
+"""
 
-print("Combined DataFrame:")
-print(combined_df.head())  # Display the first few rows
+# Run the query and get a DataFrame with the table names
+table_names_df = wr.athena.read_sql_query(query=query, database=database_name)
 
+# Filter table names using the regex pattern
+filtered_table_names = [name for name in table_names_df['table_name'] if pattern.match(name)]
 
-(?:(?!not\s+sent|not\s+issued))
+# Initialize a list to store table info
+tables_info = []
+
+# Loop through the filtered list to get column and row counts for each table
+for table_name in filtered_table_names:
+    try:
+        # Get the row count for the current table
+        row_count_query = f"SELECT COUNT(*) as row_count FROM {table_name}"
+        row_count_df = wr.athena.read_sql_query(query=row_count_query, database=database_name)
+        row_count = row_count_df['row_count'].iloc[0]
+
+        # Get the column count for the current table
+        col_count_query = f"""
+        SELECT COUNT(column_name) as column_count
+        FROM information_schema.columns
+        WHERE table_schema = '{database_name}' AND table_name = '{table_name}'
+        """
+        col_count_df = wr.athena.read_sql_query(query=col_count_query, database=database_name)
+        column_count = col_count_df['column_count'].iloc[0]
+
+        # Add the table info (name, column count, row count) to the list
+        tables_info.append((table_name, column_count, row_count))
+    except Exception as e:
+        print(f"Error retrieving info for table '{table_name}': {e}")
+
+# Display the results
+for table_name, column_count, row_count in tables_info:
+    print(f"Table '{table_name}' has {column_count} columns and {row_count} rows.")
+
 
 import glob
 import pandas as pd

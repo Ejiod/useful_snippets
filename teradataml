@@ -1,3 +1,42 @@
+import re
+import awswrangler as wr
+
+# Specify your database
+database_name = 'detail'
+
+# Regex pattern to match 't_account_' followed by a year and a month
+pattern = re.compile(r"t_account_\d{4}_\d{2}$")
+
+# SQL query to get all table names in the schema
+query = f"""
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = '{database_name}'
+AND table_name LIKE 't_account_%'
+"""
+
+
+table_names_df = wr.athena.read_sql_query(query=query, database=database_name)
+
+# Filter table names using the regex pattern
+filtered_table_names = [name for name in table_names_df['table_name'] if pattern.match(name)]
+
+
+tables_with_column_counts = []
+for table_name in filtered_table_names:
+    col_query = f"""
+    SELECT COUNT(column_name) as column_count
+    FROM information_schema.columns
+    WHERE table_schema = '{database_name}' AND table_name = '{table_name}'
+    """
+    col_count_df = wr.athena.read_sql_query(query=col_query, database=database_name)
+    column_count = col_count_df['column_count'].iloc[0]  # Get the count from the DataFrame
+    tables_with_column_counts.append((table_name, column_count))
+
+# Display the results
+for table_name, column_count in tables_with_column_counts:
+    print(f"Table '{table_name}' has {column_count} columns.")
+
 import pandas as pd
 import os
 

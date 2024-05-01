@@ -99,6 +99,23 @@ for index, row in df.iterrows():
     rows_updated = update_table(engine, table_test1, customer_id, new_values)
     print(f"Updated {rows_updated} rows for Customer ID {customer_id}")
 
+def update_table(engine, table, customer_id, new_values):
+    """
+    Update specified columns in a table based on the customer ID. Applies TRIM to all string values.
+
+    :param engine: SQLAlchemy engine object connected to the database.
+    :param table: SQLAlchemy table object to update.
+    :param customer_id: ID of the customer to update.
+    :param new_values: Dictionary of column names and their new values.
+    """
+    # Apply TRIM to all values assumed to be strings in new_values
+    trimmed_values = {key: func.trim(value) if isinstance(value, str) else value for key, value in new_values.items()}
+    
+    stmt = update(table).where(table.c.CUSTOMER_ID == customer_id).values(trimmed_values)
+    with engine.connect() as connection:
+        result = connection.execute(stmt)
+        connection.commit()
+    return result.rowcount  # Return the number of rows updated, which can be useful for logging
 
 
 import re

@@ -1,41 +1,104 @@
-import re
-import awswrangler as wr
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, func
 
-# Specify your database
-database_name = 'detail'
+# Database Setup
+engine = create_engine('teradatasql://username:password@hostname/database')
+metadata = MetaData(bind=engine)
+table = Table('your_table', metadata,
+              Column('CUSTOMER_ID', Integer, primary_key=True),
+              Column('ADDRESS_LINE_1', String),
+              Column('ADDRESS_LINE_2', String),
+              Column('ADDRESS_LINE_3', String),
+              Column('ADDRESS_LINE_4', String),
+              Column('ADDRESS_LINE_5', String),
+              Column('POSTCODE', String),
+              schema='your_database')
 
-# Regex pattern to match 't_account_' followed by a year and a month
-pattern = re.compile(r"t_account_\d{4}_\d{2}$")
+# Function to update a single row
+def update_address_data(engine, row):
+    stmt = update(table).\
+        where(table.c.CUSTOMER_ID == row['CUSTOMER_ID']).\
+        values({
+            table.c.ADDRESS_LINE_1: func.trim(row['ADDRESS_LINE_1']),
+            table.c.ADDRESS_LINE_2: func.trim(row['ADDRESS_LINE_2']),
+            table.c.ADDRESS_LINE_3: func.trim(row['ADDRESS_LINE_3']),
+            table.c.ADDRESS_LINE_4: func.trim(row['ADDRESS_LINE_4']),
+            table.c.ADDRESS_LINE_5: func.trim(row['ADDRESS_LINE_5']),
+            table.c.POSTCODE: func.trim(row['POSTCODE'])
+        })
 
-# SQL query to get all table names in the schema
-query = f"""
-SELECT table_name
-FROM information_schema.tables
-WHERE table_schema = '{database_name}'
-AND table_name LIKE 't_account_%'
-"""
+    with engine.connect() as connection:
+        connection.execute(stmt)
+
+# Loop over each row in the DataFrame
+for index, row in df.iterrows():
+    update_address_data(engine, row)
 
 
-table_names_df = wr.athena.read_sql_query(query=query, database=database_name)
 
-# Filter table names using the regex pattern
-filtered_table_names = [name for name in table_names_df['table_name'] if pattern.match(name)]
+from sqlalchemy import create_engine, MetaData, Table
 
+# Database setup
+engine = create_engine('teradatasql://username:password@hostname/database')
+metadata = MetaData(bind=engine)
 
-tables_with_column_counts = []
-for table_name in filtered_table_names:
-    col_query = f"""
-    SELECT COUNT(column_name) as column_count
-    FROM information_schema.columns
-    WHERE table_schema = '{database_name}' AND table_name = '{table_name}'
+# Reflect table structure from the existing database into SQLAlchemy metadata
+table_test1 = Table('TEST1', metadata, autoload_with=engine, schema='your_database')
+# Do similarly for other tables
+
+from sqlalchemy import update
+
+def update_table(engine, table, conditions, new_values):
     """
-    col_count_df = wr.athena.read_sql_query(query=col_query, database=database_name)
-    column_count = col_count_df['column_count'].iloc[0]  # Get the count from the DataFrame
-    tables_with_column_counts.append((table_name, column_count))
+    Update specified columns in a table based on conditions.
 
-# Display the results
-for table_name, column_count in tables_with_column_counts:
-    print(f"Table '{table_name}' has {column_count} columns.")
+    :param engine: SQLAlchemy engine object connected to the database.
+    :param table: SQLAlchemy table object to update.
+    :param conditions: SQLAlchemy Boolean expression for the WHERE clause.
+    :param new_values: Dictionary of column names and their new values.
+    """
+    stmt = update(table).where(conditions).values(new_values)
+    with engine.connect() as connection:
+        connection.execute(stmt)
+        connection.commit()
+
+
+# Example conditions and new values
+conditions = table_test1.c.CUSTOMER_ID == 123  # Example condition
+new_values = {
+    'ADDRESS_LINE_1': 'Updated Address 1',
+    'ADDRESS_LINE_2': 'Updated Address 2',
+    'ADDRESS_LINE_3': 'Updated Address 3',
+    'ADDRESS_LINE_4': 'Updated Address 4',
+    'ADDRESS_LINE_5': 'Updated Address 5',
+    'POSTCODE': 'Updated Postcode'
+}
+
+# Update TEST1 table
+update_table(engine, table_test1, conditions, new_values)
+
+# Repeat for other tables
+
+
+import pandas as pd
+
+# Example DataFrame loaded from somewhere, cleaned and processed
+# df = pd.read_csv('cleaned_data.csv')  # Uncomment this if you're reading from a CSV
+
+for index, row in df.iterrows():
+    customer_id = row['CUSTOMER_ID']
+    new_values = {
+        'ADDRESS_LINE_1': row['ADDRESS_LINE_1'],
+        'ADDRESS_LINE_2': row['ADDRESS_LINE_2'],
+        'ADDRESS_LINE_3': row['ADDRESS_LINE_3'],
+        'ADDRESS_LINE_4': row['ADDRESS_LINE_4'],
+        'ADDRESS_LINE_5': row['ADDRESS_LINE_5'],
+        'POSTCODE': row['POSTCODE']
+    }
+    
+    # Update the database for each customer
+    rows_updated = update_table(engine, table_test1, customer_id, new_values)
+    print(f"Updated {rows_updated} rows for Customer ID {customer_id}")
+
 
 
 import re

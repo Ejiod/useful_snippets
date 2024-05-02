@@ -1,121 +1,34 @@
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, func
-
-# Database Setup
-engine = create_engine('teradatasql://username:password@hostname/database')
-metadata = MetaData(bind=engine)
-table = Table('your_table', metadata,
-              Column('CUSTOMER_ID', Integer, primary_key=True),
-              Column('ADDRESS_LINE_1', String),
-              Column('ADDRESS_LINE_2', String),
-              Column('ADDRESS_LINE_3', String),
-              Column('ADDRESS_LINE_4', String),
-              Column('ADDRESS_LINE_5', String),
-              Column('POSTCODE', String),
-              schema='your_database')
-
-# Function to update a single row
-def update_address_data(engine, row):
-    stmt = update(table).\
-        where(table.c.CUSTOMER_ID == row['CUSTOMER_ID']).\
-        values({
-            table.c.ADDRESS_LINE_1: func.trim(row['ADDRESS_LINE_1']),
-            table.c.ADDRESS_LINE_2: func.trim(row['ADDRESS_LINE_2']),
-            table.c.ADDRESS_LINE_3: func.trim(row['ADDRESS_LINE_3']),
-            table.c.ADDRESS_LINE_4: func.trim(row['ADDRESS_LINE_4']),
-            table.c.ADDRESS_LINE_5: func.trim(row['ADDRESS_LINE_5']),
-            table.c.POSTCODE: func.trim(row['POSTCODE'])
-        })
-
-    with engine.connect() as connection:
-        connection.execute(stmt)
-
-# Loop over each row in the DataFrame
-for index, row in df.iterrows():
-    update_address_data(engine, row)
-
-
-
-from sqlalchemy import create_engine, MetaData, Table
-
-# Database setup
-engine = create_engine('teradatasql://username:password@hostname/database')
-metadata = MetaData(bind=engine)
-
-# Reflect table structure from the existing database into SQLAlchemy metadata
-table_test1 = Table('TEST1', metadata, autoload_with=engine, schema='your_database')
-# Do similarly for other tables
-
-from sqlalchemy import update
-
-def update_table(engine, table, conditions, new_values):
-    """
-    Update specified columns in a table based on conditions.
-
-    :param engine: SQLAlchemy engine object connected to the database.
-    :param table: SQLAlchemy table object to update.
-    :param conditions: SQLAlchemy Boolean expression for the WHERE clause.
-    :param new_values: Dictionary of column names and their new values.
-    """
-    stmt = update(table).where(conditions).values(new_values)
-    with engine.connect() as connection:
-        connection.execute(stmt)
-        connection.commit()
-
-
-# Example conditions and new values
-conditions = table_test1.c.CUSTOMER_ID == 123  # Example condition
-new_values = {
-    'ADDRESS_LINE_1': 'Updated Address 1',
-    'ADDRESS_LINE_2': 'Updated Address 2',
-    'ADDRESS_LINE_3': 'Updated Address 3',
-    'ADDRESS_LINE_4': 'Updated Address 4',
-    'ADDRESS_LINE_5': 'Updated Address 5',
-    'POSTCODE': 'Updated Postcode'
-}
-
-# Update TEST1 table
-update_table(engine, table_test1, conditions, new_values)
-
-# Repeat for other tables
-
-
+import boto3
 import pandas as pd
 
-# Example DataFrame loaded from somewhere, cleaned and processed
-# df = pd.read_csv('cleaned_data.csv')  # Uncomment this if you're reading from a CSV
+# Initialize the boto3 client for AWS Glue
+client = boto3.client('glue', region_name='eu-west-1')
 
-for index, row in df.iterrows():
-    customer_id = row['CUSTOMER_ID']
-    new_values = {
-        'ADDRESS_LINE_1': row['ADDRESS_LINE_1'],
-        'ADDRESS_LINE_2': row['ADDRESS_LINE_2'],
-        'ADDRESS_LINE_3': row['ADDRESS_LINE_3'],
-        'ADDRESS_LINE_4': row['ADDRESS_LINE_4'],
-        'ADDRESS_LINE_5': row['ADDRESS_LINE_5'],
-        'POSTCODE': row['POSTCODE']
-    }
+# Get a list of databases
+responseGetDatabases = client.get_databases()
+databases = responseGetDatabases['DatabaseList']
+
+# Prepare a list to store database and table names
+data = []
+
+# Iterate through each database
+for database in databases:
+    databaseName = database['Name']
     
-    # Update the database for each customer
-    rows_updated = update_table(engine, table_test1, customer_id, new_values)
-    print(f"Updated {rows_updated} rows for Customer ID {customer_id}")
-
-def update_table(engine, table, customer_id, new_values):
-    """
-    Update specified columns in a table based on the customer ID. Applies TRIM to all string values.
-
-    :param engine: SQLAlchemy engine object connected to the database.
-    :param table: SQLAlchemy table object to update.
-    :param customer_id: ID of the customer to update.
-    :param new_values: Dictionary of column names and their new values.
-    """
-    # Apply TRIM to all values assumed to be strings in new_values
-    trimmed_values = {key: func.trim(value) if isinstance(value, str) else value for key, value in new_values.items()}
+    # Get tables for the current database
+    responseGetTables = client.get_tables(DatabaseName=databaseName)
+    tables = responseGetTables['TableList']
     
-    stmt = update(table).where(table.c.CUSTOMER_ID == customer_id).values(trimmed_values)
-    with engine.connect() as connection:
-        result = connection.execute(stmt)
-        connection.commit()
-    return result.rowcount  # Return the number of rows updated, which can be useful for logging
+    # Append database and table names to the list
+    for table in tables:
+        tableName = table['Name']
+        data.append({'DatabaseName': databaseName, 'TableName': tableName})
+
+# Convert the list to a DataFrame
+df = pd.DataFrame(data)
+
+# Display the DataFrame
+print(df)
 
 
 import re

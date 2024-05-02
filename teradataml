@@ -1,4 +1,4 @@
-import boto3
+iimport boto3
 import pandas as pd
 
 # Initialize the boto3 client for AWS Glue
@@ -8,21 +8,28 @@ client = boto3.client('glue', region_name='eu-west-1')
 responseGetDatabases = client.get_databases()
 databases = responseGetDatabases['DatabaseList']
 
-# Prepare a list to store database and table names
+# Prepare a list to store database and table names, including descriptions
 data = []
 
 # Iterate through each database
 for database in databases:
     databaseName = database['Name']
-    
+    databaseDescription = database.get('Description', 'No description available')
+
     # Get tables for the current database
     responseGetTables = client.get_tables(DatabaseName=databaseName)
     tables = responseGetTables['TableList']
     
-    # Append database and table names to the list
+    # Append database and table names to the list, with descriptions
     for table in tables:
         tableName = table['Name']
-        data.append({'DatabaseName': databaseName, 'TableName': tableName})
+        tableDescription = table.get('Description', 'No description available')
+        data.append({
+            'DatabaseName': databaseName,
+            'DatabaseDescription': databaseDescription,
+            'TableName': tableName,
+            'TableDescription': tableDescription
+        })
 
 # Convert the list to a DataFrame
 df = pd.DataFrame(data)

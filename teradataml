@@ -1,28 +1,3 @@
-from sqlalchemy.types import Integer, SmallInteger, String, Numeric, Float, Date, Time, DateTime, LargeBinary, Text
+dtype_dict = {row['ColumnName']: teradata_type_to_sqlalchemy_dtype(row) for index, row in columns_info.iterrows()}
 
-def teradata_type_to_sqlalchemy_dtype(column):
-    type_map = {
-        'CV': String,     # VARCHAR
-        'CF': String,     # CHAR
-        'I': Integer,     # INTEGER
-        'I2': SmallInteger,  # SMALLINT
-        'I1': SmallInteger,  # BYTEINT
-        'I8': Integer,    # BIGINT (SQLAlchemy does not have BIGINT; Integer is typically adequate)
-        'D': lambda x: Numeric(precision=x['DecimalTotalDigits'], scale=x['DecimalFractionalDigits']),  # DECIMAL
-        'F': Float,       # FLOAT
-        'DA': Date,       # DATE
-        'TS': lambda x: DateTime(timezone=True) if x.get('ColumnFormat') == 'WITH TIME ZONE' else DateTime(),  # TIMESTAMP
-        'AT': LargeBinary,  # Assuming AT means BINARY or similar
-        'BF': SmallInteger,  # Assuming BF means some small integer-like type
-        'BO': LargeBinary,  # BLOB
-        'CO': Text,        # CLOB
-        'TD': Time,        # TIME (without time zone)
-        'TZ': Time,        # TIME (with time zone)
-        'SZ': DateTime,    # TIMESTAMP with time zone
-        'JN': Text,        # JSON (assuming it's stored as text)
-        'P': String,       # PERIOD(DATE) treated as string for simplicity
-        'PT': String       # PERIOD(TIMESTAMP) treated as string for simplicity
-    }
 
-    sqlalchemy_type = type_map.get(column['ColumnType'], lambda x: String)(column)
-    return sqlalchemy_type

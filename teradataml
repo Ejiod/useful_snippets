@@ -1,3 +1,33 @@
-dtype_dict = {row['ColumnName']: teradata_type_to_sqlalchemy_dtype(row) for index, row in columns_info.iterrows()}
+def teradata_type_to_sqlalchemy_dtype(columns_info):
+    type_map = {
+        'CV': lambda x: f"VARCHAR({x['ColumnLength']})",
+        'CF': lambda x: f"CHAR({x['ColumnLength']})",
+        'I': lambda x: "INTEGER",
+        'I2': lambda x: "SMALLINT",
+        'I1': lambda x: "BYTEINT",
+        'I8': lambda x: "BIGINT",
+        'D': lambda x: f"DECIMAL({x['DecimalTotalDigits']}, {x['DecimalFractionalDigits']})",
+        'F': lambda x: "FLOAT",
+        'DA': lambda x: f"DATE FORMAT '{x['ColumnFormat']}'" if x.get('ColumnFormat') else "DATE",
+        'TS': lambda x: f"TIMESTAMP({x['DecimalFractionalDigits']}) FORMAT '{x['ColumnFormat']}'" if x.get('ColumnFormat') else f"TIMESTAMP({x['DecimalFractionalDigits']})",
+        'AT': lambda x: "BYTEINT",  # Placeholder, adjust if AT means another type
+        'BF': lambda x: "BYTEINT",  # Placeholder, likely BOOLEAN or BYTE
+        'BO': lambda x: "BLOB",  # Assuming BO represents a BLOB
+        'CO': lambda x: "CLOB",  # Assuming CO represents a CLOB
+        'TD': lambda x: "TIME",  # Time data without time zone
+        'TZ': lambda x: "TIME WITH TIME ZONE",
+        'SZ': lambda x: "TIMESTAMP WITH TIME ZONE",
+        'JN': lambda x: "JSON",  # If JSON type is supported
+        'P': lambda x: "PERIOD(DATE)",  # If Period data types are used
+        'PT': lambda x: "PERIOD(TIMESTAMP)"  # If Period data types are used
+    }
 
-
+    # Construct the dictionary mapping column names to their SQL type declarations
+    dtype_dict = {}
+    for column in columns_info:
+        sql_type = type_map.get(column['ColumnType'], lambda x: "UNKNOWN TYPE")(column)
+        default = f" DEFAULT {column['DefaultValue']}" if column['DefaultValue'] else ''
+        nullable = '' if column['Nullable'] == 'Y' else ' NOT NULL'
+        dtype_dict[column['ColumnName']] = f"{sql_type}{default}{nullable}"
+    
+    return dtype_dict

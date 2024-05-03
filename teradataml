@@ -18,13 +18,36 @@ for i, chunk in enumerate(pd.read_sql(query, engine, chunksize=chunk_size)):
     # Save each chunk to a Parquet file
     chunk.to_parquet(file_path, engine='pyarrow', index=False)
     print(f'Written chunk {i} to {file_path}')
+import pandas as pd
+from snowflake.connector.pandas_tools import write_pandas
+import snowflake.connector
 
-    # Construct the dictionary mapping column names to their SQL type declarations
-    dtype_dict = {}
-    for column in columns_info:
-        sql_type = type_map.get(column['ColumnType'], lambda x: "UNKNOWN TYPE")(column)
-        default = f" DEFAULT {column['DefaultValue']}" if column['DefaultValue'] else ''
-        nullable = '' if column['Nullable'] == 'Y' else ' NOT NULL'
-        dtype_dict[column['ColumnName']] = f"{sql_type}{default}{nullable}"
+# Define your Snowflake connection parameters
+conn = snowflake.connector.connect(
+    user='YOUR_USERNAME',
+    password='YOUR_PASSWORD',
+    account='YOUR_ACCOUNT',
+    warehouse='YOUR_WAREHOUSE',
+    database='YOUR_DATABASE',
+    schema='YOUR_SCHEMA'
+)
+
+# Define the size of each chunk
+chunk_size = 100000
+
+# Create a reader object for the CSV
+reader = pd.read_csv('path_to_your_file.csv', chunksize=chunk_size)
+
+# Iterate over each chunk
+for i, chunk in enumerate(reader):
+    # Optional: Define the table name dynamically or statically
+    table_name = f"your_table_name_chunk_{i}"
     
-    return dtype_dict
+    # Write the DataFrame chunk to Snowflake
+    write_pandas(conn, chunk, table_name)
+    
+    # Optionally, you can also output to confirm each chunk is processed
+    print(f"Chunk {i} written to table {table_name}")
+
+# Close the connection to Snowflake
+conn.close()

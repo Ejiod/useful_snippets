@@ -1,26 +1,23 @@
-def teradata_type_to_sqlalchemy_dtype(columns_info):
-    type_map = {
-        'CV': lambda x: f"VARCHAR({x['ColumnLength']})",
-        'CF': lambda x: f"CHAR({x['ColumnLength']})",
-        'I': lambda x: "INTEGER",
-        'I2': lambda x: "SMALLINT",
-        'I1': lambda x: "BYTEINT",
-        'I8': lambda x: "BIGINT",
-        'D': lambda x: f"DECIMAL({x['DecimalTotalDigits']}, {x['DecimalFractionalDigits']})",
-        'F': lambda x: "FLOAT",
-        'DA': lambda x: f"DATE FORMAT '{x['ColumnFormat']}'" if x.get('ColumnFormat') else "DATE",
-        'TS': lambda x: f"TIMESTAMP({x['DecimalFractionalDigits']}) FORMAT '{x['ColumnFormat']}'" if x.get('ColumnFormat') else f"TIMESTAMP({x['DecimalFractionalDigits']})",
-        'AT': lambda x: "BYTEINT",  # Placeholder, adjust if AT means another type
-        'BF': lambda x: "BYTEINT",  # Placeholder, likely BOOLEAN or BYTE
-        'BO': lambda x: "BLOB",  # Assuming BO represents a BLOB
-        'CO': lambda x: "CLOB",  # Assuming CO represents a CLOB
-        'TD': lambda x: "TIME",  # Time data without time zone
-        'TZ': lambda x: "TIME WITH TIME ZONE",
-        'SZ': lambda x: "TIMESTAMP WITH TIME ZONE",
-        'JN': lambda x: "JSON",  # If JSON type is supported
-        'P': lambda x: "PERIOD(DATE)",  # If Period data types are used
-        'PT': lambda x: "PERIOD(TIMESTAMP)"  # If Period data types are used
-    }
+import pandas as pd
+from sqlalchemy import create_engine
+
+# Replace with your actual database connection details
+engine = create_engine('postgresql://username:password@localhost:5432/mydatabase')
+
+# SQL query to select data
+query = "SELECT * FROM my_large_table"
+
+# Define chunk size
+chunk_size = 10000
+
+# Process in chunks
+for i, chunk in enumerate(pd.read_sql(query, engine, chunksize=chunk_size)):
+    # Define file path
+    file_path = f'data_chunk_{i}.parquet'
+    
+    # Save each chunk to a Parquet file
+    chunk.to_parquet(file_path, engine='pyarrow', index=False)
+    print(f'Written chunk {i} to {file_path}')
 
     # Construct the dictionary mapping column names to their SQL type declarations
     dtype_dict = {}

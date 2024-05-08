@@ -51,3 +51,42 @@ for i, chunk in enumerate(reader):
 
 # Close the connection to Snowflake
 conn.close()
+
+
+
+
+from teradataml import create_context, DataFrame, copy_to_sql, executeSQL, remove_context
+import pandas as pd
+
+# Establish context
+create_context(host="your_teradata_host", username="your_username", password="your_password")
+
+# Assuming 'df' is your existing DataFrame with 111 columns
+# Select only the relevant columns for update plus the key column for joins
+update_cols = ['id', 'column1', 'column2', 'column3', 'column4', 'column5']
+df_update = df[update_cols]
+
+# Insert/update data into the staging table
+staging_table_name = "your_table_staging"
+copy_to_sql(df_update, table_name=staging_table_name, if_exists="replace", primary_index='id', index=False)
+
+# Perform the update
+update_sql = f"""
+MERGE INTO your_table AS target
+USING {staging_table_name} AS source
+ON target.id = source.id
+WHEN MATCHED THEN
+    UPDATE SET
+    target.column1 = source.column1,
+    target.column2 = source.column2,
+    target.column3 = source.column3,
+    target.column4 = source.column4,
+    target.column5 = source.column5
+"""
+executeSQL(update_sql)
+
+# Optionally drop the staging table if no longer needed
+executeSQL(f"DROP TABLE {staging_table_name}")
+
+# Close context
+remove_context()

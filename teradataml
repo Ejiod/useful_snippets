@@ -92,9 +92,24 @@ executeSQL(f"DROP TABLE {staging_table_name}")
 remove_context()
 
 
+import pandas as pd
 
+# Assume df is your initial DataFrame
+df['ARREARS_TOTAL'] = 0.0  # Initialize ARREARS_TOTAL to 0.0
 
-df['ARREARS_TOTAL'] = 0.0
-df['ARREARS_TOTAL'] = df.apply(lambda row: max(0, row['ARREARS'] + row.get('OVERPAYMENT', 0)), axis=1).cumsum()
+# Compute ARREARS_TOTAL iteratively
+for i in range(1, len(df)):
+    if df.loc[i, 'ARREARS'] < 0:
+        # If ARREARS is negative, add the previous ARREARS_TOTAL to the current ARREARS
+        df.loc[i, 'ARREARS_TOTAL'] = df.loc[i-1, 'ARREARS_TOTAL'] + df.loc[i, 'ARREARS']
+    else:
+        # Check if OVERPAYMENT should reset ARREARS_TOTAL
+        if df.loc[i-1, 'OVERPAYMENT'] > 0:
+            df.loc[i, 'ARREARS_TOTAL'] = 0
+        else:
+            # Maintain previous ARREARS_TOTAL otherwise
+            df.loc[i, 'ARREARS_TOTAL'] = df.loc[i-1, 'ARREARS_TOTAL']
+
+# Round ARREARS_TOTAL to two decimal places
 df['ARREARS_TOTAL'] = df['ARREARS_TOTAL'].round(2)
 

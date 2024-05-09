@@ -90,3 +90,11 @@ executeSQL(f"DROP TABLE {staging_table_name}")
 
 # Close context
 remove_context()
+
+
+
+
+df['ARREARS_TOTAL'] = 0.0
+df['ARREARS_TOTAL'] = df.apply(lambda row: max(0, row['ARREARS'] + row.get('OVERPAYMENT', 0)), axis=1).cumsum()
+df['ARREARS_TOTAL'] = df['ARREARS_TOTAL'].round(2)
+

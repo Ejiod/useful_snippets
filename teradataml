@@ -1,115 +1,40 @@
+import cx_Oracle
 import pandas as pd
-from sqlalchemy import create_engine
+import pyarrow as pa
+import pyarrow.parquet as pq
 
-# Replace with your actual database connection details
-engine = create_engine('postgresql://username:password@localhost:5432/mydatabase')
+# Oracle connection parameters
+dsn = cx_Oracle.makedsn('host', 'port', 'sid/service')
+connection = cx_Oracle.connect('username', 'password', dsn)
 
-# SQL query to select data
-query = "SELECT * FROM my_large_table"
+# SQL query to execute
+query = "SELECT * FROM your_table"
 
-# Define chunk size
-chunk_size = 10000
+# Create a cursor and execute the query
+cursor = connection.cursor()
+cursor.execute(query)
 
-# Process in chunks
-for i, chunk in enumerate(pd.read_sql(query, engine, chunksize=chunk_size)):
+# Reduce chunk size if needed
+chunk_size = 1000000  # Adjust based on initial testing
+file_number = 1
+
+# Fetch and write chunks
+while True:
+    rows = cursor.fetchmany(chunk_size)
+    if not rows:
+        break
+    df = pd.DataFrame(rows, columns=[col[0] for col in cursor.description])
+    
     # Define file path
-    file_path = f'data_chunk_{i}.parquet'
+    file_path = f'data_chunk_{file_number}.parquet'
     
-    # Save each chunk to a Parquet file
-    chunk.to_parquet(file_path, engine='pyarrow', index=False)
-    print(f'Written chunk {i} to {file_path}')
-import pandas as pd
-from snowflake.connector.pandas_tools import write_pandas
-import snowflake.connector
-
-# Define your Snowflake connection parameters
-conn = snowflake.connector.connect(
-    user='YOUR_USERNAME',
-    password='YOUR_PASSWORD',
-    account='YOUR_ACCOUNT',
-    warehouse='YOUR_WAREHOUSE',
-    database='YOUR_DATABASE',
-    schema='YOUR_SCHEMA'
-)
-
-# Define the size of each chunk
-chunk_size = 100000
-
-# Create a reader object for the CSV
-reader = pd.read_csv('path_to_your_file.csv', chunksize=chunk_size)
-
-# Iterate over each chunk
-for i, chunk in enumerate(reader):
-    # Optional: Define the table name dynamically or statically
-    table_name = f"your_table_name_chunk_{i}"
+    # Convert DataFrame to Parquet
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    pq.write_table(table, file_path, compression='snappy')
     
-    # Write the DataFrame chunk to Snowflake
-    write_pandas(conn, chunk, table_name)
-    
-    # Optionally, you can also output to confirm each chunk is processed
-    print(f"Chunk {i} written to table {table_name}")
+    print(f'Wrote {file_path}')
+    file_number += 1
 
-# Close the connection to Snowflake
-conn.close()
-
-
-
-
-from teradataml import create_context, DataFrame, copy_to_sql, executeSQL, remove_context
-import pandas as pd
-
-# Establish context
-create_context(host="your_teradata_host", username="your_username", password="your_password")
-
-# Assuming 'df' is your existing DataFrame with 111 columns
-# Select only the relevant columns for update plus the key column for joins
-update_cols = ['id', 'column1', 'column2', 'column3', 'column4', 'column5']
-df_update = df[update_cols]
-
-# Insert/update data into the staging table
-staging_table_name = "your_table_staging"
-copy_to_sql(df_update, table_name=staging_table_name, if_exists="replace", primary_index='id', index=False)
-
-# Perform the update
-update_sql = f"""
-MERGE INTO your_table AS target
-USING {staging_table_name} AS source
-ON target.id = source.id
-WHEN MATCHED THEN
-    UPDATE SET
-    target.column1 = source.column1,
-    target.column2 = source.column2,
-    target.column3 = source.column3,
-    target.column4 = source.column4,
-    target.column5 = source.column5
-"""
-executeSQL(update_sql)
-
-# Optionally drop the staging table if no longer needed
-executeSQL(f"DROP TABLE {staging_table_name}")
-
-# Close context
-remove_context()
-
-
-import pandas as pd
-
-# Assume df is your initial DataFrame
-df['ARREARS_TOTAL'] = 0.0  # Initialize ARREARS_TOTAL to 0.0
-
-# Compute ARREARS_TOTAL iteratively
-for i in range(1, len(df)):
-    if df.loc[i, 'ARREARS'] < 0:
-        # If ARREARS is negative, add the previous ARREARS_TOTAL to the current ARREARS
-        df.loc[i, 'ARREARS_TOTAL'] = df.loc[i-1, 'ARREARS_TOTAL'] + df.loc[i, 'ARREARS']
-    else:
-        # Check if OVERPAYMENT should reset ARREARS_TOTAL
-        if df.loc[i-1, 'OVERPAYMENT'] > 0:
-            df.loc[i, 'ARREARS_TOTAL'] = 0
-        else:
-            # Maintain previous ARREARS_TOTAL otherwise
-            df.loc[i, 'ARREARS_TOTAL'] = df.loc[i-1, 'ARREARS_TOTAL']
-
-# Round ARREARS_TOTAL to two decimal places
-df['ARREARS_TOTAL'] = df['ARREARS_TOTAL'].round(2)
-
+# Clean up
+cursor.close()
+connection.close()

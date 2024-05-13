@@ -35,6 +35,61 @@ while True:
     print(f'Wrote {file_path}')
     file_number += 1
 
+
+
+
+
+
+import dask.dataframe as dd
+from sqlalchemy import create_engine
+from dask.distributed import Client
+
+client = Client()  # starts a local Dask client
+
+# Establish connection
+engine = create_engine('oracle+cx_oracle://username:password@hostname:port/?service_name=service_name')
+
+# Query
+query = "SELECT * FROM your_table"
+
+# Using Dask to handle larger-than-memory data by loading and processing in partitions
+dask_df = dd.read_sql_table(table_name='your_table', uri=str(engine.url), index_col='id', # assuming 'id' is a unique column
+                            npartitions=320)  # Adjust partitions depending on the size and number of files
+
+# Writing each partition to Parquet
+def write_parquet(df, file_number):
+    file_path = f'data_chunk_{file_number}.parquet'
+    df.to_parquet(file_path, engine='pyarrow')
+    print(f'Wrote {file_path}')
+
+# Apply function over each partition
+dask_df.map_partitions(write_parquet, meta=(None, 'object')).compute()
+
+
+
+
+
+
+
+import polars as pl
+from sqlalchemy import create_engine
+
+# Establish connection
+engine = create_engine('oracle+cx_oracle://username:password@hostname:port/?service_name=service_name')
+
+# Query and read in chunks (assuming manual chunk handling)
+query = "SELECT * FROM your_table"
+chunks = pl.scan_sql(str(engine.url), query, return_table=True)  # Adjust based on actual capabilities
+
+# Process and write chunks to Parquet
+file_number = 1
+for df in chunks:
+    file_path = f'data_chunk_{file_number}.parquet'
+    df.write_parquet(file_path)
+    print(f'Wrote {file_path}')
+    file_number += 1
+
+
 # Clean up
 cursor.close()
 connection.close()

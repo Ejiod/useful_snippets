@@ -68,24 +68,65 @@ dask_df.map_partitions(write_parquet, meta=(None, 'object')).compute()
 
 
 
+import os
+import polars as pl
 
+def merge_parquet_files_with_polars(source_folder, destination_folder):
+    # List all Parquet files in the source folder
+    files = [f for f in os.listdir(source_folder) if f.endswith('.parquet')]
+    files.sort()  # Sort files if necessary
 
-import boto3
+    # Process files in batches of 10
+    for i in range(0, len(files), 10):
+        batch_files = files[i:i+10]
+        # Read all files in the batch into a list of DataFrames
+        dfs = [pl.read_parquet(os.path.join(source_folder, f)) for f in batch_files]
 
-def upload_file_to_s3(file_path, bucket, object_name):
-    """
-    Upload a file directly to an S3 bucket
+        # Concatenate all DataFrames in this batch
+        df_merged = pl.concat(dfs)
 
-    :param file_path: Path to the local file to upload
-    :param bucket: S3 bucket name
-    :param object_name: Object name in S3 (including path)
-    """
-    s3_client = boto3.client('s3')
-    try:
-        s3_client.upload_file(file_path, bucket, object_name)
-        print(f'Successfully uploaded {file_path} to s3://{bucket}/{object_name}')
-    except Exception as e:
-        print(f'Failed to upload {file_path}. Error: {str(e)}')
+        # Save the merged DataFrame to a new Parquet file
+        output_file = os.path.join(destination_folder, f'merged_{i//10}.parquet')
+        df_merged.write_parquet(output_file)
+
+        print(f'Merged {len(batch_files)} files into {output_file}')
 
 # Example usage
-upload_file_to_s3('path/to/your/file.parquet', 'your-bucket-name', 'path/in/s3/file.parquet')
+merge_parquet_files_with_polars('path/to/your/parquet/files', 'path/to/save/merged/files')
+
+
+
+import os
+import pandas as pd
+
+def merge_parquet_files(source_folder, destination_folder):
+    files = [f for f in os.listdir(source_folder) if f.endswith('.parquet')]
+    files.sort()
+
+    total_original_rows = 0  # To track the number of rows before merging
+
+    for i in range(0, len(files), 10):
+        batch_files = files[i:i+10]
+        dfs = []
+
+        for f in batch_files:
+            df = pd.read_parquet(os.path.join(source_folder, f))
+            total_original_rows += len(df)  # Count rows in each DataFrame
+            dfs.append(df)
+
+        df_merged = pd.concat(dfs, ignore_index=True)
+        assert len(df_merged) == total_original_rows, "Row count mismatch after merging"
+
+        output_file = os.path.join(destination_folder, f'merged_{i//10}.parquet')
+        df_merged.to_parquet(output_file)
+        print(f'Merged {len(batch_files)} files into {output_file} with {len(df_merged)} rows')
+
+        total_original_rows = 0  # Reset count for the next batch
+
+# Example usage
+merge_parquet_files('path/to/your/parquet/files', 'path/to/save/merged/files')
+
+
+
+
+

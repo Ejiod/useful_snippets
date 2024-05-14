@@ -95,38 +95,30 @@ def merge_parquet_files_with_polars(source_folder, destination_folder):
 merge_parquet_files_with_polars('path/to/your/parquet/files', 'path/to/save/merged/files')
 
 
-
 import os
 import pandas as pd
 
 def merge_parquet_files(source_folder, destination_folder):
+    # List all Parquet files in the source folder
     files = [f for f in os.listdir(source_folder) if f.endswith('.parquet')]
-    files.sort()
+    files.sort()  # Sort files if necessary
 
-    total_original_rows = 0  # To track the number of rows before merging
-
+    # Process files in batches of 10
     for i in range(0, len(files), 10):
         batch_files = files[i:i+10]
-        dfs = []
+        dfs = [pd.read_parquet(os.path.join(source_folder, f)) for f in batch_files]
 
-        for f in batch_files:
-            df = pd.read_parquet(os.path.join(source_folder, f))
-            total_original_rows += len(df)  # Count rows in each DataFrame
-            dfs.append(df)
-
+        # Concatenate all DataFrames in this batch
         df_merged = pd.concat(dfs, ignore_index=True)
-        assert len(df_merged) == total_original_rows, "Row count mismatch after merging"
 
+        # Save the merged DataFrame to a new Parquet file
         output_file = os.path.join(destination_folder, f'merged_{i//10}.parquet')
         df_merged.to_parquet(output_file)
-        print(f'Merged {len(batch_files)} files into {output_file} with {len(df_merged)} rows')
 
-        total_original_rows = 0  # Reset count for the next batch
+        print(f'Merged {len(batch_files)} files into {output_file}')
 
 # Example usage
 merge_parquet_files('path/to/your/parquet/files', 'path/to/save/merged/files')
-
-
 
 
 

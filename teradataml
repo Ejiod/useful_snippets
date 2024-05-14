@@ -70,26 +70,36 @@ dask_df.map_partitions(write_parquet, meta=(None, 'object')).compute()
 
 
 
+import os
+import pandas as pd
+import awswrangler as wr
 
-import polars as pl
-from sqlalchemy import create_engine
+def upload_parquet_files(folder_path, s3_bucket, s3_path):
+    """
+    Uploads all Parquet files from a local folder to S3.
 
-# Establish connection
-engine = create_engine('oracle+cx_oracle://username:password@hostname:port/?service_name=service_name')
+    :param folder_path: Path to the folder containing Parquet files.
+    :param s3_bucket: S3 bucket name.
+    :param s3_path: Path inside the S3 bucket to store the files.
+    """
+    # Iterate over all files in the directory
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".parquet"):
+            file_path = os.path.join(folder_path, filename)
+            # Create the full S3 path for each file
+            full_s3_path = f"s3://{s3_bucket}/{s3_path}/{filename}"
+            
+            # Read the parquet file into a DataFrame
+            df = pd.read_parquet(file_path)
+            
+            # Upload the DataFrame to S3 as a Parquet file
+            wr.s3.to_parquet(
+                df=df,
+                path=full_s3_path,
+                index=False,
+                dataset=True  # Store as a dataset with metadata if required
+            )
+            print(f'Uploaded {filename} to {full_s3_path}')
 
-# Query and read in chunks (assuming manual chunk handling)
-query = "SELECT * FROM your_table"
-chunks = pl.scan_sql(str(engine.url), query, return_table=True)  # Adjust based on actual capabilities
-
-# Process and write chunks to Parquet
-file_number = 1
-for df in chunks:
-    file_path = f'data_chunk_{file_number}.parquet'
-    df.write_parquet(file_path)
-    print(f'Wrote {file_path}')
-    file_number += 1
-
-
-# Clean up
-cursor.close()
-connection.close()
+# Example usage
+upload_parquet_files('path/to/your/local/folder', 'your-bucket-name', 'path/in/s3')

@@ -1,124 +1,59 @@
-import cx_Oracle
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
-
-# Oracle connection parameters
-dsn = cx_Oracle.makedsn('host', 'port', 'sid/service')
-connection = cx_Oracle.connect('username', 'password', dsn)
-
-# SQL query to execute
-query = "SELECT * FROM your_table"
-
-# Create a cursor and execute the query
-cursor = connection.cursor()
-cursor.execute(query)
-
-# Reduce chunk size if needed
-chunk_size = 1000000  # Adjust based on initial testing
-file_number = 1
-
-# Fetch and write chunks
-while True:
-    rows = cursor.fetchmany(chunk_size)
-    if not rows:
-        break
-    df = pd.DataFrame(rows, columns=[col[0] for col in cursor.description])
-    
-    # Define file path
-    file_path = f'data_chunk_{file_number}.parquet'
-    
-    # Convert DataFrame to Parquet
-    table = pa.Table.from_pandas(df, preserve_index=False)
-    pq.write_table(table, file_path, compression='snappy')
-    
-    print(f'Wrote {file_path}')
-    file_number += 1
-
-
-
-
-
-
-import dask.dataframe as dd
-from sqlalchemy import create_engine
-from dask.distributed import Client
-
-client = Client()  # starts a local Dask client
-
-# Establish connection
-engine = create_engine('oracle+cx_oracle://username:password@hostname:port/?service_name=service_name')
-
-# Query
-query = "SELECT * FROM your_table"
-
-# Using Dask to handle larger-than-memory data by loading and processing in partitions
-dask_df = dd.read_sql_table(table_name='your_table', uri=str(engine.url), index_col='id', # assuming 'id' is a unique column
-                            npartitions=320)  # Adjust partitions depending on the size and number of files
-
-# Writing each partition to Parquet
-def write_parquet(df, file_number):
-    file_path = f'data_chunk_{file_number}.parquet'
-    df.to_parquet(file_path, engine='pyarrow')
-    print(f'Wrote {file_path}')
-
-# Apply function over each partition
-dask_df.map_partitions(write_parquet, meta=(None, 'object')).compute()
-
-
-
-
-import os
-import polars as pl
-
-def merge_parquet_files_with_polars(source_folder, destination_folder):
-    # List all Parquet files in the source folder
-    files = [f for f in os.listdir(source_folder) if f.endswith('.parquet')]
-    files.sort()  # Sort files if necessary
-
-    # Process files in batches of 10
-    for i in range(0, len(files), 10):
-        batch_files = files[i:i+10]
-        # Read all files in the batch into a list of DataFrames
-        dfs = [pl.read_parquet(os.path.join(source_folder, f)) for f in batch_files]
-
-        # Concatenate all DataFrames in this batch
-        df_merged = pl.concat(dfs)
-
-        # Save the merged DataFrame to a new Parquet file
-        output_file = os.path.join(destination_folder, f'merged_{i//10}.parquet')
-        df_merged.write_parquet(output_file)
-
-        print(f'Merged {len(batch_files)} files into {output_file}')
-
-# Example usage
-merge_parquet_files_with_polars('path/to/your/parquet/files', 'path/to/save/merged/files')
-
-
-import os
+import pyodbc
 import pandas as pd
 
-def merge_parquet_files(source_folder, destination_folder):
-    # List all Parquet files in the source folder
-    files = [f for f in os.listdir(source_folder) if f.endswith('.parquet')]
-    files.sort()  # Sort files if necessary
+# Connect to Impala
+conn = pyodbc.connect(
+    'DRIVER={Cloudera ODBC Driver for Impala};'
+    'HOST=your_impala_host;'
+    'PORT=your_impala_port;'
+    'UID=your_username;'
+    'PWD=your_password;'
+    'AUTHMECH=3'  # Adjust this based on your authentication mechanism
+)
 
-    # Process files in batches of 10
-    for i in range(0, len(files), 10):
-        batch_files = files[i:i+10]
-        dfs = [pd.read_parquet(os.path.join(source_folder, f)) for f in batch_files]
+# Get list of tables in the schema
+schema = 'your_schema_name'
+query_tables = f"SHOW TABLES IN {schema}"
 
-        # Concatenate all DataFrames in this batch
-        df_merged = pd.concat(dfs, ignore_index=True)
+tables_df = pd.read_sql(query_tables, conn)
 
-        # Save the merged DataFrame to a new Parquet file
-        output_file = os.path.join(destination_folder, f'merged_{i//10}.parquet')
-        df_merged.to_parquet(output_file)
+table_metadata = []
 
-        print(f'Merged {len(batch_files)} files into {output_file}')
+for index, row in tables_df.iterrows():
+    table_name = row[0]
+    
+    # Get column count
+    query_columns = f"SHOW COLUMN STATS {schema}.{table_name}"
+    columns_df = pd.read_sql(query_columns, conn)
+    column_count = len(columns_df)
+    
+    # Get the earliest date, latest date, and row count
+    # Replace 'date_column' with the actual date column name in your tables
+    query_metadata = f"""
+    SELECT
+        MIN(date_column) AS earliest_date,
+        MAX(date_column) AS latest_date,
+        COUNT(*) AS row_count
+    FROM {schema}.{table_name}
+    """
+    metadata_df = pd.read_sql(query_metadata, conn)
+    
+    earliest_date = metadata_df['earliest_date'].iloc[0]
+    latest_date = metadata_df['latest_date'].iloc[0]
+    row_count = metadata_df['row_count'].iloc[0]
+    
+    table_metadata.append({
+        'table_name': table_name,
+        'earliest_date': earliest_date,
+        'latest_date': latest_date,
+        'row_count': row_count,
+        'column_count': column_count
+    })
 
-# Example usage
-merge_parquet_files('path/to/your/parquet/files', 'path/to/save/merged/files')
+# Convert the metadata list to a DataFrame
+metadata_df = pd.DataFrame(table_metadata)
 
+# Save the DataFrame to a CSV file
+metadata_df.to_csv('table_metadata.csv', index=False)
 
-
+print("Table metadata has been successfully exported to table_metadata.csv")

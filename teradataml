@@ -55,3 +55,15 @@ metadata_df = pd.DataFrame(table_metadata)
 metadata_df.to_csv('table_metadata.csv', index=False)
 
 print("Table metadata has been successfully exported to table_metadata.csv")
+
+
+tables = ['A', 'B', 'C', 'D']
+query_parts = []
+
+for table in tables:
+    part = f"SELECT '{table}' AS table_name, COUNT(*) AS row_count, MAX(dates) AS max_date FROM {table} GROUP BY 1"
+    query_parts.append(part)
+
+final_query = " UNION ".join(query_parts) + ";"
+print(final_query)
+

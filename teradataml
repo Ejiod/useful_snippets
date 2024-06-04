@@ -1,108 +1,45 @@
-import pyodbc
+import awswrangler as wr
 import pandas as pd
 
-# Connect to Impala
-conn = pyodbc.connect(
-    'DRIVER={Cloudera ODBC Driver for Impala};'
-    'HOST=your_impala_host;'
-    'PORT=your_impala_port;'
-    'UID=your_username;'
-    'PWD=your_password;'
-    'AUTHMECH=3'  # Adjust this based on your authentication mechanism
-)
+# Set your AWS region and Athena database name
+region_name = 'your-region-name'
+database = 'your_database_name'
 
-# Get list of tables in the schema
-schema = 'your_schema_name'
-query_tables = f"SHOW TABLES IN {schema}"
-
-tables_df = pd.read_sql(query_tables, conn)
-
-table_metadata = []
-
-for index, row in tables_df.iterrows():
-    table_name = row[0]
-    
-    # Get column count
-    query_columns = f"SHOW COLUMN STATS {schema}.{table_name}"
-    columns_df = pd.read_sql(query_columns, conn)
-    column_count = len(columns_df)
-    
-    # Get the earliest date, latest date, and row count
-    # Replace 'date_column' with the actual date column name in your tables
-    query_metadata = f"""
-    SELECT
-        MIN(date_column) AS earliest_date,
-        MAX(date_column) AS latest_date,
-        COUNT(*) AS row_count
-    FROM {schema}.{table_name}
-    """
-    metadata_df = pd.read_sql(query_metadata, conn)
-    
-    earliest_date = metadata_df['earliest_date'].iloc[0]
-    latest_date = metadata_df['latest_date'].iloc[0]
-    row_count = metadata_df['row_count'].iloc[0]
-    
-    table_metadata.append({
-        'table_name': table_name,
-        'earliest_date': earliest_date,
-        'latest_date': latest_date,
-        'row_count': row_count,
-        'column_count': column_count
-    })
-
-# Convert the metadata list to a DataFrame
-metadata_df = pd.DataFrame(table_metadata)
-
-# Save the DataFrame to a CSV file
-metadata_df.to_csv('table_metadata.csv', index=False)
-
-print("Table metadata has been successfully exported to table_metadata.csv")
-
-
-
-
-
-
-
-
-
-
-# Get list of tables in the schema, excluding views
-schema = 'your_schema_name'
+# Get the list of tables in the database
 query_tables = f"""
-SELECT TABLE_NAME 
-FROM information_schema.tables 
-WHERE table_schema = '{schema}' 
-AND table_type = 'BASE TABLE'
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = '{database}'
 """
 
-tables_df = pd.read_sql(query_tables, conn)
+tables_df = wr.athena.read_sql_query(query_tables, database='information_schema', region=region_name)
 
 table_metadata = []
 
-for index, row in tables_df.iterrows():
-    table_name = row[0]
-
+for table_name in tables_df['table_name']:
     # Get column count
-    query_columns = f"SHOW COLUMN STATS {schema}.{table_name}"
-    columns_df = pd.read_sql(query_columns, conn)
-    column_count = len(columns_df)
-    
+    query_columns = f"""
+    SELECT COUNT(*) AS column_count
+    FROM information_schema.columns
+    WHERE table_schema = '{database}' AND table_name = '{table_name}'
+    """
+    columns_df = wr.athena.read_sql_query(query_columns, database='information_schema', region=region_name)
+    column_count = columns_df['column_count'].iloc[0]
+
     # Get the earliest date, latest date, and row count
-    # Replace 'date_column' with the actual date column name in your tables
     query_metadata = f"""
     SELECT
         MIN(date_column) AS earliest_date,
         MAX(date_column) AS latest_date,
         COUNT(*) AS row_count
-    FROM {schema}.{table_name}
+    FROM {database}.{table_name}
     """
-    metadata_df = pd.read_sql(query_metadata, conn)
+    metadata_df = wr.athena.read_sql_query(query_metadata, database=database, region=region_name)
     
     earliest_date = metadata_df['earliest_date'].iloc[0]
     latest_date = metadata_df['latest_date'].iloc[0]
     row_count = metadata_df['row_count'].iloc[0]
-    
+
     table_metadata.append({
         'table_name': table_name,
         'earliest_date': earliest_date,

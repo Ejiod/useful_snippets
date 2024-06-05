@@ -1,25 +1,28 @@
 import pandas as pd
-import phonenumbers
 
-def clean_phone_number(phone):
-    try:
-        # Parse the phone number with a None region to automatically detect country code
-        parsed_phone = phonenumbers.parse(phone, None)
-        # Format the phone number in international format
-        formatted_phone = phonenumbers.format_number(parsed_phone, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-        return formatted_phone
-    except phonenumbers.NumberParseException:
+def clean_phone_number(phone, country_flag):
+    # Check if phone number is None or an empty string
+    if not phone or pd.isnull(phone):
+        return phone
+    
+    # Check if the number is from UK
+    if country_flag == 1:
+        if phone.startswith('44'):
+            return '+' + phone
+        elif phone.startswith('07'):
+            return '+447' + phone[2:]
+        elif phone.startswith('7'):
+            return '+447' + phone[1:]
+        else:
+            return phone
+    else:
         return phone
 
-# Read the Excel file
-file_path = 'path_to_your_excel_file.xlsx'
-df = pd.read_excel(file_path)
+# Create DataFrame (Replace with your SQL query result)
+df = pd.read_sql("SELECT * FROM your_table_name", connection)
 
-# Assume the phone numbers are in a column named 'Phone'
-df['Cleaned_Phone'] = df['Phone'].apply(clean_phone_number)
+# Apply the cleaning function to the 'Phone' column with 'country_flag' as an additional argument
+df['Cleaned_Phone'] = df.apply(lambda row: clean_phone_number(row['Phone'], row['country_flag']), axis=1)
 
-# Save the updated DataFrame back to Excel
-output_path = 'path_to_save_cleaned_excel_file.xlsx'
-df.to_excel(output_path, index=False)
-
-print(f"Cleaned phone numbers saved to {output_path}")
+# Display the DataFrame
+print(df)

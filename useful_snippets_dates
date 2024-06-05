@@ -1,35 +1,40 @@
 import pandas as pd
 
-def clean_phone_number(phone):
+def clean_phone_number(phone, country_flag):
+    # Check if phone number is None or an empty string
+    if not phone or pd.isnull(phone):
+        return phone
+    
     # Check if the number is from UK
-    if phone.startswith('44'):
-        return '+' + phone
-    elif phone.startswith('07'):
-        return '+447' + phone[2:]
-    elif phone.startswith('7'):
-        return '+447' + phone[1:]
+    if country_flag == 1:
+        # Check if it's a UK landline number with area code starting with 01 or 02
+        if phone.startswith('01') or phone.startswith('02'):
+            return '+44' + phone[1:]
+        # Check if it's a UK mobile number starting with 44
+        elif phone.startswith('44'):
+            return '+' + phone
+        # Check if it's a UK mobile number starting with 07
+        elif phone.startswith('07'):
+            return '+447' + phone[2:]
+        # Check if it's a UK mobile number starting with 7
+        elif phone.startswith('7'):
+            return '+447' + phone[1:]
+        else:
+            return phone
+    elif country_flag == 0:
+        # Check if it's a UK landline number with area code starting with 01 or 02
+        if phone.startswith('01') or phone.startswith('02'):
+            return '+44' + phone[1:]
+        else:
+            return phone
     else:
         return phone
 
-# Create a dictionary with example data
-data = {
-    'Phone': [
-        '0793128923',   # UK mobile number without leading 0
-        '+44793128923', # UK mobile number in international format
-        '44793128923',  # UK mobile number without leading +
-        '02079460958',  # UK landline number
-        '01134567890',  # UK landline number in international format
-        '+12015550123', # US phone number in international format
-        '+61255501234', # Australian phone number in international format
-        'invalid number' # Invalid phone number
-    ]
-}
+# Create DataFrame (Replace with your SQL query result)
+df = pd.read_sql("SELECT * FROM your_table_name", connection)
 
-# Create DataFrame
-df = pd.DataFrame(data)
-
-# Apply the cleaning function to the 'Phone' column
-df['Cleaned_Phone'] = df['Phone'].apply(clean_phone_number)
+# Apply the cleaning function to the 'Phone' column with 'country_flag' as an additional argument
+df['Cleaned_Phone'] = df.apply(lambda row: clean_phone_number(row['Phone'], row['country_flag']), axis=1)
 
 # Display the DataFrame
 print(df)

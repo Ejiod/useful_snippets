@@ -1,45 +1,35 @@
 import pandas as pd
-import phonenumbers
 
 def clean_phone_number(phone):
-    try:
-        # Parse the phone number
-        parsed_phone = phonenumbers.parse(phone, None)
-        
-        # Check if the number is from UK
-        if parsed_phone.country_code == 44:
-            # If it's already in international format, return as is
-            if phone.startswith('+44'):
-                return phone
-            
-            # If it starts with 7 and is 10 digits long, add +44 prefix
-            elif phone.startswith('7') and len(phone) == 10:
-                return '+44' + phone
-            
-            # If it's a mobile phone number starting with 07, add +44 prefix
-            elif phone.startswith('07'):
-                return '+44' + phone[1:]
-            
-            # If it's a landline number or other special number, format it to international format
-            else:
-                return phonenumbers.format_number(parsed_phone, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-        
-        # For numbers from other countries, format them in international format
-        else:
-            return phonenumbers.format_number(parsed_phone, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-            
-    except phonenumbers.NumberParseException:
+    # Check if the number is from UK
+    if phone.startswith('44'):
+        return '+' + phone
+    elif phone.startswith('07'):
+        return '+447' + phone[2:]
+    elif phone.startswith('7'):
+        return '+447' + phone[1:]
+    else:
         return phone
 
-# Read the Excel file
-file_path = 'path_to_your_excel_file.xlsx'
-df = pd.read_excel(file_path)
+# Create a dictionary with example data
+data = {
+    'Phone': [
+        '0793128923',   # UK mobile number without leading 0
+        '+44793128923', # UK mobile number in international format
+        '44793128923',  # UK mobile number without leading +
+        '02079460958',  # UK landline number
+        '01134567890',  # UK landline number in international format
+        '+12015550123', # US phone number in international format
+        '+61255501234', # Australian phone number in international format
+        'invalid number' # Invalid phone number
+    ]
+}
 
-# Assume the phone numbers are in a column named 'Phone'
+# Create DataFrame
+df = pd.DataFrame(data)
+
+# Apply the cleaning function to the 'Phone' column
 df['Cleaned_Phone'] = df['Phone'].apply(clean_phone_number)
 
-# Save the updated DataFrame back to Excel
-output_path = 'path_to_save_cleaned_excel_file.xlsx'
-df.to_excel(output_path, index=False)
-
-print(f"Cleaned phone numbers saved to {output_path}")
+# Display the DataFrame
+print(df)

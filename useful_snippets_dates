@@ -1,40 +1,39 @@
-import pandas as pd
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import lit
+import os
 
-def clean_phone_number(phone, country_flag):
-    # Check if phone number is None or an empty string
-    if not phone or pd.isnull(phone):
-        return phone
+# Initialize SparkSession
+spark = SparkSession.builder \
+    .appName("Merge Parquet Files") \
+    .getOrCreate()
+
+# Directory containing Parquet files
+input_dir = "/path/to/parquet/files/"
+
+# List all Parquet files
+parquet_files = [os.path.join(input_dir, file) for file in os.listdir(input_dir) if file.endswith(".parquet")]
+
+# Chunk the files into groups of 10
+chunked_files = [parquet_files[i:i+10] for i in range(0, len(parquet_files), 10)]
+
+# Read and merge each chunk
+merged_df = None
+for i, chunk in enumerate(chunked_files):
+    # Read the Parquet files
+    chunk_df = spark.read.parquet(*chunk)
     
-    # Check if the number is from UK
-    if country_flag == 1:
-        # Check if it's a UK landline number with area code starting with 01 or 02
-        if phone.startswith('01') or phone.startswith('02'):
-            return '+44' + phone[1:]
-        # Check if it's a UK mobile number starting with 44
-        elif phone.startswith('44'):
-            return '+' + phone
-        # Check if it's a UK mobile number starting with 07
-        elif phone.startswith('07'):
-            return '+447' + phone[2:]
-        # Check if it's a UK mobile number starting with 7
-        elif phone.startswith('7'):
-            return '+447' + phone[1:]
-        else:
-            return phone
-    elif country_flag == 0:
-        # Check if it's a UK landline number with area code starting with 01 or 02
-        if phone.startswith('01') or phone.startswith('02'):
-            return '+44' + phone[1:]
-        else:
-            return phone
+    # Add a column to identify the chunk
+    chunk_df = chunk_df.withColumn("chunk_id", lit(i))
+    
+    # Union the chunk with the merged DataFrame
+    if merged_df is None:
+        merged_df = chunk_df
     else:
-        return phone
+        merged_df = merged_df.union(chunk_df)
 
-# Create DataFrame (Replace with your SQL query result)
-df = pd.read_sql("SELECT * FROM your_table_name", connection)
+# Write the merged DataFrame back to Parquet
+output_dir = "/path/to/output/merged.parquet"
+merged_df.write.mode("overwrite").parquet(output_dir)
 
-# Apply the cleaning function to the 'Phone' column with 'country_flag' as an additional argument
-df['Cleaned_Phone'] = df.apply(lambda row: clean_phone_number(row['Phone'], row['country_flag']), axis=1)
-
-# Display the DataFrame
-print(df)
+# Stop SparkSession
+spark.stop()

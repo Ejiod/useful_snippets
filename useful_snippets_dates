@@ -160,3 +160,72 @@ def read_and_save_in_chunks(connection_string, query, chunk_size):
 
 # Call the function to start reading and saving data in chunks
 read_and_save_in_chunks(connection_string, query, chunk_size)
+
+
+
+
+
+
+import connectorx as cx
+import polars as pl
+import snowflake.connector
+from snowflake.connector.pandas_tools import write_pandas
+
+# Oracle connection string
+connection_string = "oracle://username:password@host:port/service_name"
+
+# SQL query
+query = "SELECT * FROM your_table_name"
+
+# Snowflake connection parameters
+sf_params = {
+    'user': 'your_sf_username',
+    'password': 'your_sf_password',
+    'account': 'your_sf_account',
+    'warehouse': 'your_sf_warehouse',
+    'database': 'your_sf_database',
+    'schema': 'your_sf_schema'
+}
+
+# Number of rows per chunk
+chunk_size = 10_000_000
+
+# Function to read and load data in chunks
+def read_and_load_in_chunks(connection_string, query, chunk_size, sf_params):
+    offset = 0
+    chunk_number = 0
+    
+    # Connect to Snowflake
+    conn = snowflake.connector.connect(**sf_params)
+    
+    while True:
+        # Modify the query to fetch a chunk of data
+        chunk_query = f"{query} OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY"
+        
+        # Read chunk into Polars DataFrame
+        df = pl.DataFrame(cx.read_sql(connection_string, chunk_query))
+        
+        # If no more data, break the loop
+        if df.is_empty():
+            break
+        
+        # Convert Polars DataFrame to Pandas DataFrame
+        pandas_df = df.to_pandas()
+        
+        # Load the DataFrame to Snowflake
+        success, nchunks, nrows, _ = write_pandas(conn, pandas_df, 'your_sf_table')
+        if success:
+            print(f"Loaded {nrows} rows into Snowflake table (chunk {chunk_number})")
+        else:
+            print(f"Failed to load chunk {chunk_number} into Snowflake")
+        
+        # Update offset and chunk number for next iteration
+        offset += chunk_size
+        chunk_number += 1
+    
+    # Close Snowflake connection
+    conn.close()
+
+# Call the function to start reading and loading data in chunks
+read_and_load_in_chunks(connection_string, query, chunk_size, sf_params)
+

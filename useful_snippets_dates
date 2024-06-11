@@ -114,3 +114,49 @@ def read_and_save_in_chunks(connection_string, query, chunk_size):
 
 # Call the function to start reading and saving data in chunks
 read_and_save_in_chunks(connection_string, query, chunk_size)
+
+
+
+
+
+
+
+import connectorx as cx
+import polars as pl
+
+# Oracle connection string
+connection_string = "oracle://username:password@host:port/service_name"
+
+# SQL query
+query = "SELECT * FROM your_table_name"
+
+# Number of rows per chunk
+chunk_size = 10_000_000
+
+# Function to read and save data in chunks
+def read_and_save_in_chunks(connection_string, query, chunk_size):
+    offset = 0
+    chunk_number = 0
+    
+    while True:
+        # Modify the query to fetch a chunk of data
+        chunk_query = f"{query} OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY"
+        
+        # Read chunk into Polars DataFrame
+        df = pl.DataFrame(cx.read_sql(connection_string, chunk_query))
+        
+        # If no more data, break the loop
+        if df.is_empty():
+            break
+        
+        # Save the DataFrame to a Parquet file
+        file_name = f"chunk_{chunk_number}.parquet"
+        df.write_parquet(file_name)
+        print(f"Saved {file_name}")
+        
+        # Update offset and chunk number for next iteration
+        offset += chunk_size
+        chunk_number += 1
+
+# Call the function to start reading and saving data in chunks
+read_and_save_in_chunks(connection_string, query, chunk_size)

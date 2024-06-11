@@ -37,3 +37,80 @@ merged_df.write.mode("overwrite").parquet(output_dir)
 
 # Stop SparkSession
 spark.stop()
+
+
+
+
+
+
+from pyspark.sql import SparkSession
+
+# Initialize Spark Session
+spark = SparkSession.builder \
+    .appName("Read Oracle with Spark") \
+    .config("spark.jars", "/path/to/ojdbc8.jar") \
+    .getOrCreate()
+
+# Oracle connection properties
+oracle_connection_url = "jdbc:oracle:thin:@//host:port/service_name"
+oracle_properties = {
+    "user": "your_username",
+    "password": "your_password",
+    "driver": "oracle.jdbc.OracleDriver"
+}
+
+# Read table from Oracle database
+df = spark.read.jdbc(url=oracle_connection_url, table="your_table_name", properties=oracle_properties)
+
+# Show the data
+df.show()
+
+# Stop Spark Session
+spark.stop()
+
+
+
+
+
+
+
+
+import connectorx as cx
+import pandas as pd
+
+# Oracle connection string
+connection_string = "oracle://username:password@host:port/service_name"
+
+# SQL query
+query = "SELECT * FROM your_table_name"
+
+# Number of rows per chunk
+chunk_size = 10_000_000
+
+# Function to read and save data in chunks
+def read_and_save_in_chunks(connection_string, query, chunk_size):
+    offset = 0
+    chunk_number = 0
+    
+    while True:
+        # Modify the query to fetch a chunk of data
+        chunk_query = f"{query} OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY"
+        
+        # Read chunk into pandas DataFrame
+        df = cx.read_sql(connection_string, chunk_query)
+        
+        # If no more data, break the loop
+        if df.empty:
+            break
+        
+        # Save the DataFrame to a Parquet file
+        file_name = f"chunk_{chunk_number}.parquet"
+        df.to_parquet(file_name, index=False)
+        print(f"Saved {file_name}")
+        
+        # Update offset and chunk number for next iteration
+        offset += chunk_size
+        chunk_number += 1
+
+# Call the function to start reading and saving data in chunks
+read_and_save_in_chunks(connection_string, query, chunk_size)

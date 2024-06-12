@@ -232,17 +232,19 @@ read_and_load_in_chunks(connection_string, query, chunk_size, sf_params)
 
 
 
-
 import cx_Oracle
 import pandas as pd
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
-from sqlalchemy import create_engine
 
-# Create Snowflake connection engine
-snowflake_conn_str = "your_snowflake_connection_string"
-engine = create_engine(snowflake_conn_str)
+# Connect to Oracle
+connection = cx_Oracle.connect("username/password@hostname/service_name")
+
+# Define DataFrame containing account numbers
+# Assuming 'dfs' is your DataFrame containing account numbers in a column named 'acc'
+# Replace this with your actual DataFrame
+dfs = pd.DataFrame({'acc': [19877, 245, ...]})  # Add your account numbers here
 
 # Define batch size
 batch_size = 1000
@@ -258,13 +260,12 @@ for i in range(0, len(dfs), batch_size):
     acc_str = ','.join(str(acc) for acc in batch_account_numbers)
     # Execute the query with the current batch of account numbers
     query = query_template.format(acc_str)
-    # Read data from Snowflake into DataFrame
-    df = pd.read_sql(query, engine)
+    df = pd.read_sql(query, connection)
     # Save DataFrame to Parquet file
     parquet_file = f"tableA_batch_{i//batch_size}.parquet"
     pq.write_table(pa.Table.from_pandas(df), parquet_file)
     print(f"Parquet file '{parquet_file}' created.")
 
-# Close the Snowflake connection
-engine.dispose()
+# Close the connection
+connection.close()
 

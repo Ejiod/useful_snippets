@@ -229,3 +229,42 @@ def read_and_load_in_chunks(connection_string, query, chunk_size, sf_params):
 # Call the function to start reading and loading data in chunks
 read_and_load_in_chunks(connection_string, query, chunk_size, sf_params)
 
+
+
+
+
+import cx_Oracle
+import pandas as pd
+import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
+from sqlalchemy import create_engine
+
+# Create Snowflake connection engine
+snowflake_conn_str = "your_snowflake_connection_string"
+engine = create_engine(snowflake_conn_str)
+
+# Define batch size
+batch_size = 1000
+
+# Define SQL query template with a placeholder for account numbers
+query_template = "SELECT * FROM tableA WHERE acc IN ({})"
+
+# Execute queries in batches and save results to Parquet files
+for i in range(0, len(dfs), batch_size):
+    batch_df = dfs.iloc[i:i+batch_size]
+    batch_account_numbers = batch_df['acc'].tolist()
+    # Construct comma-separated string of account numbers for the IN clause
+    acc_str = ','.join(str(acc) for acc in batch_account_numbers)
+    # Execute the query with the current batch of account numbers
+    query = query_template.format(acc_str)
+    # Read data from Snowflake into DataFrame
+    df = pd.read_sql(query, engine)
+    # Save DataFrame to Parquet file
+    parquet_file = f"tableA_batch_{i//batch_size}.parquet"
+    pq.write_table(pa.Table.from_pandas(df), parquet_file)
+    print(f"Parquet file '{parquet_file}' created.")
+
+# Close the Snowflake connection
+engine.dispose()
+

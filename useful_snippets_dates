@@ -24,6 +24,38 @@ for i, chunk in enumerate(chunked_files):
     
     # Add a column to identify the chunk
     chunk_df = chunk_df.withColumn("chunk_id", lit(i))
+
+
+
+
+def clean_phone_number(phone):
+    # Check if phone number is None or an empty string
+    if not phone or pd.isnull(phone):
+        return phone
+    
+    # Check if it's a UK landline number with area code starting with 01 or 02
+    if phone.startswith('01') or phone.startswith('02'):
+        # Check if the length of the phone number is abnormal
+        if len(phone) != 10:
+            # Handle abnormal phone number length (e.g., add missing digits)
+            # Example: For a 9-digit phone number, add the missing '+' and '44' prefix
+            return '+44' + phone[1:] if len(phone) == 9 else phone
+        else:
+            return '+44' + phone[1:]
+    # Check if it's a UK mobile number starting with 44
+    elif phone.startswith('44'):
+        return '+' + phone
+    # Check if it's a UK mobile number starting with 07
+    elif phone.startswith('07'):
+        return '+447' + phone[2:]
+    # Check if it's a UK mobile number starting with 7
+    elif phone.startswith('7'):
+        return '+447' + phone[1:]
+    else:
+        # Handle abnormal phone number length for non-UK numbers (if applicable)
+        # Example: Add the missing '+' prefix for international numbers
+        return '+' + phone if len(phone) > 0 and not phone.startswith('+') else phone
+
     
     # Union the chunk with the merged DataFrame
     if merged_df is None:

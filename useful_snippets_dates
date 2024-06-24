@@ -1,65 +1,33 @@
-import cx_Oracle
+import pandas as pd
+import glob
+import os
 
-# Function to get table metadata including additional attributes
-def get_table_metadata(connection, table_name):
-    cursor = connection.cursor()
+# Directory where your Parquet files are stored
+directory_path = 'path/to/your/parquet/files/'
 
-    # Query to get table columns, their data types, lengths, nullability, comments, default values, and precision/scale
-    query = f"""
-    SELECT 
-        cols.column_name,
-        cols.data_type,
-        cols.data_length,
-        cols.data_precision,
-        cols.data_scale,
-        cols.nullable,
-        cols.data_default,
-        comments.comments,
-        cons.constraint_type
-    FROM 
-        all_tab_columns cols
-    LEFT JOIN 
-        all_col_comments comments 
-    ON 
-        cols.table_name = comments.table_name 
-        AND cols.column_name = comments.column_name
-    LEFT JOIN (
-        SELECT 
-            cols.column_name, 
-            cons.constraint_type
-        FROM 
-            all_cons_columns cols
-        JOIN 
-            all_constraints cons 
-        ON 
-            cols.constraint_name = cons.constraint_name 
-            AND cons.constraint_type = 'P' -- Primary key
-        WHERE 
-            cols.table_name = :table_name
-    ) cons
-    ON 
-        cols.column_name = cons.column_name
-    WHERE 
-        cols.table_name = :table_name
-    """
-    cursor.execute(query, [table_name.upper(), table_name.upper()])
+# Get a list of all Parquet files in the directory
+parquet_files = sorted(glob.glob(f'{directory_path}/*.parquet'))
 
-    columns = cursor.fetchall()
-    cursor.close()
+# Define a function to process a chunk of files
+def process_chunk(file_chunk, output_filename):
+    # Read and combine Parquet files in the chunk
+    combined_df = pd.concat([pd.read_parquet(file) for file in file_chunk], ignore_index=True)
+    
+    # Export the combined DataFrame to a new Parquet file
+    combined_df.to_parquet(output_filename)
 
-    return columns
+# Number of files to process in each chunk
+chunk_size = 700
 
-# Establish connection
-dsn_tns = cx_Oracle.makedsn('host', 'port', service_name='service_name')
-connection = cx_Oracle.connect(user='username', password='password', dsn=dsn_tns)
+# Create output directory if it doesn't exist
+output_directory = 'path/to/output/files/'
+os.makedirs(output_directory, exist_ok=True)
 
-# Get metadata for a specific table
-table_name = 'your_table_name'
-metadata = get_table_metadata(connection, table_name)
+# Process files in chunks
+for i in range(0, len(parquet_files), chunk_size):
+    file_chunk = parquet_files[i:i + chunk_size]
+    output_filename = os.path.join(output_directory, f'combined_{i//chunk_size + 1}.parquet')
+    process_chunk(file_chunk, output_filename)
+    print(f'Processed chunk {i//chunk_size + 1}: {len(file_chunk)} files')
 
-# Print metadata
-for column in metadata:
-    print(f"Column: {column[0]}, Data Type: {column[1]}, Length: {column[2]}, Precision: {column[3]}, Scale: {column[4]}, Nullable: {column[5]}, Default: {column[6]}, Comment: {column[7]}, Primary Key: {column[8]}")
-
-# Close the connection
-connection.close()
+print('All chunks processed.')

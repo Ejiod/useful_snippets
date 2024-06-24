@@ -1,303 +1,65 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import lit
-import os
-
-# Initialize SparkSession
-spark = SparkSession.builder \
-    .appName("Merge Parquet Files") \
-    .getOrCreate()
-
-# Directory containing Parquet files
-input_dir = "/path/to/parquet/files/"
-
-# List all Parquet files
-parquet_files = [os.path.join(input_dir, file) for file in os.listdir(input_dir) if file.endswith(".parquet")]
-
-# Chunk the files into groups of 10
-chunked_files = [parquet_files[i:i+10] for i in range(0, len(parquet_files), 10)]
-
-# Read and merge each chunk
-merged_df = None
-for i, chunk in enumerate(chunked_files):
-    # Read the Parquet files
-    chunk_df = spark.read.parquet(*chunk)
-    
-    # Add a column to identify the chunk
-    chunk_df = chunk_df.withColumn("chunk_id", lit(i))
-
-
-
-
-def clean_phone_number(phone):
-    # Check if phone number is None or an empty string
-    if not phone or pd.isnull(phone):
-        return phone
-    
-    # Check if it's a UK landline number with area code starting with 01 or 02
-    if phone.startswith('01') or phone.startswith('02'):
-        # Check if the length of the phone number is abnormal
-        if len(phone) != 10:
-            # Handle abnormal phone number length (e.g., add missing digits)
-            # Example: For a 9-digit phone number, add the missing '+' and '44' prefix
-            return '+44' + phone[1:] if len(phone) == 9 else phone
-        else:
-            return '+44' + phone[1:]
-    # Check if it's a UK mobile number starting with 44
-    elif phone.startswith('44'):
-        return '+' + phone
-    # Check if it's a UK mobile number starting with 07
-    elif phone.startswith('07'):
-        return '+447' + phone[2:]
-    # Check if it's a UK mobile number starting with 7
-    elif phone.startswith('7'):
-        return '+447' + phone[1:]
-    else:
-        # Handle abnormal phone number length for non-UK numbers (if applicable)
-        # Example: Add the missing '+' prefix for international numbers
-        return '+' + phone if len(phone) > 0 and not phone.startswith('+') else phone
-
-    
-    # Union the chunk with the merged DataFrame
-    if merged_df is None:
-        merged_df = chunk_df
-    else:
-        merged_df = merged_df.union(chunk_df)
-
-# Write the merged DataFrame back to Parquet
-output_dir = "/path/to/output/merged.parquet"
-merged_df.write.mode("overwrite").parquet(output_dir)
-
-# Stop SparkSession
-spark.stop()
-
-
-
-
-
-
-from pyspark.sql import SparkSession
-
-# Initialize Spark Session
-spark = SparkSession.builder \
-    .appName("Read Oracle with Spark") \
-    .config("spark.jars", "/path/to/ojdbc8.jar") \
-    .getOrCreate()
-
-# Oracle connection properties
-oracle_connection_url = "jdbc:oracle:thin:@//host:port/service_name"
-oracle_properties = {
-    "user": "your_username",
-    "password": "your_password",
-    "driver": "oracle.jdbc.OracleDriver"
-}
-
-# Read table from Oracle database
-df = spark.read.jdbc(url=oracle_connection_url, table="your_table_name", properties=oracle_properties)
-
-# Show the data
-df.show()
-
-# Stop Spark Session
-spark.stop()
-
-
-
-
-
-
-
-
-import connectorx as cx
-import pandas as pd
-
-# Oracle connection string
-connection_string = "oracle://username:password@host:port/service_name"
-
-# SQL query
-query = "SELECT * FROM your_table_name"
-
-# Number of rows per chunk
-chunk_size = 10_000_000
-
-# Function to read and save data in chunks
-def read_and_save_in_chunks(connection_string, query, chunk_size):
-    offset = 0
-    chunk_number = 0
-    
-    while True:
-        # Modify the query to fetch a chunk of data
-        chunk_query = f"{query} OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY"
-        
-        # Read chunk into pandas DataFrame
-        df = cx.read_sql(connection_string, chunk_query)
-        
-        # If no more data, break the loop
-        if df.empty:
-            break
-        
-        # Save the DataFrame to a Parquet file
-        file_name = f"chunk_{chunk_number}.parquet"
-        df.to_parquet(file_name, index=False)
-        print(f"Saved {file_name}")
-        
-        # Update offset and chunk number for next iteration
-        offset += chunk_size
-        chunk_number += 1
-
-# Call the function to start reading and saving data in chunks
-read_and_save_in_chunks(connection_string, query, chunk_size)
-
-
-
-
-
-
-
-import connectorx as cx
-import polars as pl
-
-# Oracle connection string
-connection_string = "oracle://username:password@host:port/service_name"
-
-# SQL query
-query = "SELECT * FROM your_table_name"
-
-# Number of rows per chunk
-chunk_size = 10_000_000
-
-# Function to read and save data in chunks
-def read_and_save_in_chunks(connection_string, query, chunk_size):
-    offset = 0
-    chunk_number = 0
-    
-    while True:
-        # Modify the query to fetch a chunk of data
-        chunk_query = f"{query} OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY"
-        
-        # Read chunk into Polars DataFrame
-        df = pl.DataFrame(cx.read_sql(connection_string, chunk_query))
-        
-        # If no more data, break the loop
-        if df.is_empty():
-            break
-        
-        # Save the DataFrame to a Parquet file
-        file_name = f"chunk_{chunk_number}.parquet"
-        df.write_parquet(file_name)
-        print(f"Saved {file_name}")
-        
-        # Update offset and chunk number for next iteration
-        offset += chunk_size
-        chunk_number += 1
-
-# Call the function to start reading and saving data in chunks
-read_and_save_in_chunks(connection_string, query, chunk_size)
-
-
-
-
-
-
-import connectorx as cx
-import polars as pl
-import snowflake.connector
-from snowflake.connector.pandas_tools import write_pandas
-
-# Oracle connection string
-connection_string = "oracle://username:password@host:port/service_name"
-
-# SQL query
-query = "SELECT * FROM your_table_name"
-
-# Snowflake connection parameters
-sf_params = {
-    'user': 'your_sf_username',
-    'password': 'your_sf_password',
-    'account': 'your_sf_account',
-    'warehouse': 'your_sf_warehouse',
-    'database': 'your_sf_database',
-    'schema': 'your_sf_schema'
-}
-
-# Number of rows per chunk
-chunk_size = 10_000_000
-
-# Function to read and load data in chunks
-def read_and_load_in_chunks(connection_string, query, chunk_size, sf_params):
-    offset = 0
-    chunk_number = 0
-    
-    # Connect to Snowflake
-    conn = snowflake.connector.connect(**sf_params)
-    
-    while True:
-        # Modify the query to fetch a chunk of data
-        chunk_query = f"{query} OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY"
-        
-        # Read chunk into Polars DataFrame
-        df = pl.DataFrame(cx.read_sql(connection_string, chunk_query))
-        
-        # If no more data, break the loop
-        if df.is_empty():
-            break
-        
-        # Convert Polars DataFrame to Pandas DataFrame
-        pandas_df = df.to_pandas()
-        
-        # Load the DataFrame to Snowflake
-        success, nchunks, nrows, _ = write_pandas(conn, pandas_df, 'your_sf_table')
-        if success:
-            print(f"Loaded {nrows} rows into Snowflake table (chunk {chunk_number})")
-        else:
-            print(f"Failed to load chunk {chunk_number} into Snowflake")
-        
-        # Update offset and chunk number for next iteration
-        offset += chunk_size
-        chunk_number += 1
-    
-    # Close Snowflake connection
-    conn.close()
-
-# Call the function to start reading and loading data in chunks
-read_and_load_in_chunks(connection_string, query, chunk_size, sf_params)
-
-
-
-
 import cx_Oracle
-import pandas as pd
-import numpy as np
-import pyarrow as pa
-import pyarrow.parquet as pq
 
-# Connect to Oracle
-connection = cx_Oracle.connect("username/password@hostname/service_name")
+# Function to get table metadata including additional attributes
+def get_table_metadata(connection, table_name):
+    cursor = connection.cursor()
 
-# Define DataFrame containing account numbers
-# Assuming 'dfs' is your DataFrame containing account numbers in a column named 'acc'
-# Replace this with your actual DataFrame
-dfs = pd.DataFrame({'acc': [19877, 245, ...]})  # Add your account numbers here
+    # Query to get table columns, their data types, lengths, nullability, comments, default values, and precision/scale
+    query = f"""
+    SELECT 
+        cols.column_name,
+        cols.data_type,
+        cols.data_length,
+        cols.data_precision,
+        cols.data_scale,
+        cols.nullable,
+        cols.data_default,
+        comments.comments,
+        cons.constraint_type
+    FROM 
+        all_tab_columns cols
+    LEFT JOIN 
+        all_col_comments comments 
+    ON 
+        cols.table_name = comments.table_name 
+        AND cols.column_name = comments.column_name
+    LEFT JOIN (
+        SELECT 
+            cols.column_name, 
+            cons.constraint_type
+        FROM 
+            all_cons_columns cols
+        JOIN 
+            all_constraints cons 
+        ON 
+            cols.constraint_name = cons.constraint_name 
+            AND cons.constraint_type = 'P' -- Primary key
+        WHERE 
+            cols.table_name = :table_name
+    ) cons
+    ON 
+        cols.column_name = cons.column_name
+    WHERE 
+        cols.table_name = :table_name
+    """
+    cursor.execute(query, [table_name.upper(), table_name.upper()])
 
-# Define batch size
-batch_size = 1000
+    columns = cursor.fetchall()
+    cursor.close()
 
-# Define SQL query template with a placeholder for account numbers
-query_template = "SELECT * FROM tableA WHERE acc IN ({})"
+    return columns
 
-# Execute queries in batches and save results to Parquet files
-for i in range(0, len(dfs), batch_size):
-    batch_df = dfs.iloc[i:i+batch_size]
-    batch_account_numbers = batch_df['acc'].tolist()
-    # Construct comma-separated string of account numbers for the IN clause
-    acc_str = ','.join(str(acc) for acc in batch_account_numbers)
-    # Execute the query with the current batch of account numbers
-    query = query_template.format(acc_str)
-    df = pd.read_sql(query, connection)
-    # Save DataFrame to Parquet file
-    parquet_file = f"tableA_batch_{i//batch_size}.parquet"
-    pq.write_table(pa.Table.from_pandas(df), parquet_file)
-    print(f"Parquet file '{parquet_file}' created.")
+# Establish connection
+dsn_tns = cx_Oracle.makedsn('host', 'port', service_name='service_name')
+connection = cx_Oracle.connect(user='username', password='password', dsn=dsn_tns)
+
+# Get metadata for a specific table
+table_name = 'your_table_name'
+metadata = get_table_metadata(connection, table_name)
+
+# Print metadata
+for column in metadata:
+    print(f"Column: {column[0]}, Data Type: {column[1]}, Length: {column[2]}, Precision: {column[3]}, Scale: {column[4]}, Nullable: {column[5]}, Default: {column[6]}, Comment: {column[7]}, Primary Key: {column[8]}")
 
 # Close the connection
 connection.close()
-

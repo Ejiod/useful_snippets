@@ -1,134 +1,61 @@
+import cx_Oracle
 import pandas as pd
-import glob
-import os
 
-# Directory where your Parquet files are stored
-directory_path = 'path/to/your/parquet/files/'
+# Function to chunk a list into smaller lists of a specified size
+def chunk_list(lst, chunk_size):
+    for i in range(0, len(lst), chunk_size):
+        yield lst[i:i + chunk_size]
 
-# Get a list of all Parquet files in the directory
-parquet_files = sorted(glob.glob(f'{directory_path}/*.parquet'))
-
-# Define a function to process a chunk of files
-def process_chunk(file_chunk, output_filename):
-    # Read and combine Parquet files in the chunk
-    combined_df = pd.concat([pd.read_parquet(file) for file in file_chunk], ignore_index=True)
+# Function to execute a chunked query and combine results
+def execute_chunked_query(connection, acc_list, bn_list, table_name):
+    cursor = connection.cursor()
+    acc_chunks = list(chunk_list(acc_list, 1000))
+    bn_chunks = list(chunk_list(bn_list, 1000))
     
-    # Export the combined DataFrame to a new Parquet file
-    combined_df.to_parquet(output_filename)
-
-# Number of files to process in each chunk
-chunk_size = 700
-
-# Create output directory if it doesn't exist
-output_directory = 'path/to/output/files/'
-os.makedirs(output_directory, exist_ok=True)
-
-# Process files in chunks
-for i in range(0, len(parquet_files), chunk_size):
-    file_chunk = parquet_files[i:i + chunk_size]
-    output_filename = os.path.join(output_directory, f'combined_{i//chunk_size + 1}.parquet')
-    process_chunk(file_chunk, output_filename)
-    print(f'Processed chunk {i//chunk_size + 1}: {len(file_chunk)} files')
-
-print('All chunks processed.')
-
-
-
-
-
-
-
-import os
-import pandas as pd
-from snowflake.connector import connect
-from snowflake.connector.pandas_tools import write_pandas
-
-# Define your Snowflake connection parameters
-conn_params = {
-    'user': 'your_username',
-    'password': 'your_password',
-    'account': 'your_account_identifier',
-    'warehouse': 'your_warehouse',
-    'database': 'your_database',
-    'schema': 'your_schema'
-}
-
-# Create a connection to Snowflake
-conn = connect(**conn_params)
-
-# Directory containing parquet files
-parquet_dir = '/path/to/your/parquet/files'
-
-# List all parquet files in the directory
-parquet_files = [f for f in os.listdir(parquet_dir) if f.endswith('.parquet')]
-
-# Iterate through each parquet file
-for parquet_file in parquet_files:
-    # Construct the full file path
-    file_path = os.path.join(parquet_dir, parquet_file)
+    total_count = 0
     
-    # Read the parquet file into a DataFrame
-    df = pd.read_parquet(file_path)
+    for acc_chunk in acc_chunks:
+        for bn_chunk in bn_chunks:
+            acc_placeholders = ','.join(':' + str(i + 1) for i in range(len(acc_chunk)))
+            bn_placeholders = ','.join(':' + str(len(acc_chunk) + i + 1) for i in range(len(bn_chunk)))
+            
+            query = f"""
+            SELECT COUNT(*) FROM {table_name}
+            WHERE Acc IN ({acc_placeholders})
+            AND Bn IN ({bn_placeholders})
+            """
+            
+            params = acc_chunk + bn_chunk
+            cursor.execute(query, params)
+            
+            count = cursor.fetchone()[0]
+            total_count += count
+    
+    cursor.close()
+    return total_count
 
-    # Write the DataFrame to Snowflake
-    success, nchunks, nrows, _ = write_pandas(conn, df, 'your_target_table')
+# Provide your Oracle database connection details
+dsn_tns = cx_Oracle.makedsn('host', 'port', service_name='service_name')
+connection = cx_Oracle.connect(user='username', password='password', dsn=dsn_tns)
 
-    # Print the result for each file
-    print(f"File: {parquet_file} - Success: {success}, Chunks: {nchunks}, Rows: {nrows}")
+# Example DataFrame with more than 4000 entries
+df = pd.DataFrame({
+    'Acc': ['A1', 'A2', 'A3', ..., 'A4000'],
+    'Bn': ['B1', 'B2', 'B3', ..., 'B4000']
+})
+
+# Extract unique values from DataFrame
+acc_list = df['Acc'].unique().tolist()
+bn_list = df['Bn'].unique().tolist()
+
+# Table name
+table_name = 'your_table_name'
+
+# Execute the chunked query
+total_count = execute_chunked_query(connection, acc_list, bn_list, table_name)
+
+# Print the total count
+print(f'Total count: {total_count}')
 
 # Close the connection
-conn.close()
-
-
-
-
-import os
-import polars as pl
-import pandas as pd
-from snowflake.connector import connect
-from snowflake.connector.pandas_tools import write_pandas
-
-# Define your Snowflake connection parameters
-conn_params = {
-    'user': 'your_username',
-    'password': 'your_password',
-    'account': 'your_account_identifier',
-    'warehouse': 'your_warehouse',
-    'database': 'your_database',
-    'schema': 'your_schema'
-}
-
-# Directory containing Parquet files
-parquet_dir = '/path/to/your/parquet/files'
-chunk_size = 100000  # Adjust the chunk size as needed
-
-# List all Parquet files in the directory
-parquet_files = [f for f in os.listdir(parquet_dir) if f.endswith('.parquet')]
-
-# Create a connection to Snowflake
-conn = connect(**conn_params)
-
-# Iterate through each Parquet file
-for parquet_file in parquet_files:
-    try:
-        # Read the Parquet file in Polars DataFrame
-        parquet_file_path = os.path.join(parquet_dir, parquet_file)
-        df_polars = pl.read_parquet(parquet_file_path)
-
-        # Convert Polars DataFrame to Pandas DataFrame in chunks
-        for i in range(0, len(df_polars), chunk_size):
-            chunk_polars = df_polars[i:i+chunk_size]
-            chunk_pandas = chunk_polars.to_pandas()
-
-            # Write each chunk to Snowflake
-            success, nchunks, nrows, _ = write_pandas(conn, chunk_pandas, 'your_target_table')
-
-            # Print the result for each chunk
-            print(f"File: {parquet_file}, Chunk Rows: {len(chunk_pandas)} - Success: {success}, Chunks: {nchunks}, Rows: {nrows}")
-
-    except Exception as e:
-        print(f"Error processing file {parquet_file}: {e}")
-
-# Close the connection
-conn.close()
-
+connection.close()

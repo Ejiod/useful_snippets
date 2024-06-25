@@ -59,3 +59,58 @@ print(f'Total count: {total_count}')
 
 # Close the connection
 connection.close()
+
+
+
+import connectorx as cx
+import pandas as pd
+
+# Function to chunk a list into smaller lists of a specified size
+def chunk_list(lst, chunk_size):
+    for i in range(0, len(lst), chunk_size):
+        yield lst[i:i + chunk_size]
+
+# Function to execute a chunked query and combine results
+def execute_chunked_query(connection_str, acc_list, bn_list, table_name):
+    acc_chunks = list(chunk_list(acc_list, 1000))
+    bn_chunks = list(chunk_list(bn_list, 1000))
+    
+    total_count = 0
+    
+    for acc_chunk in acc_chunks:
+        for bn_chunk in bn_chunks:
+            acc_placeholders = ','.join(f"'{acc}'" for acc in acc_chunk)
+            bn_placeholders = ','.join(f"'{bn}'" for bn in bn_chunk)
+            
+            query = f"""
+            SELECT COUNT(*) AS cnt FROM {table_name}
+            WHERE Acc IN ({acc_placeholders})
+            AND Bn IN ({bn_placeholders})
+            """
+            
+            df = cx.read_sql(connection_str, query)
+            total_count += df['cnt'].sum()
+    
+    return total_count
+
+# Example DataFrame with more than 4000 entries
+df = pd.DataFrame({
+    'Acc': [f'A{i}' for i in range(1, 4001)],
+    'Bn': [f'B{i}' for i in range(1, 4001)]
+})
+
+# Extract unique values from DataFrame
+acc_list = df['Acc'].unique().tolist()
+bn_list = df['Bn'].unique().tolist()
+
+# Connection string
+connection_str = "oracle://username:password@host:port/service_name"
+
+# Table name
+table_name = 'your_table_name'
+
+# Execute the chunked query
+total_count = execute_chunked_query(connection_str, acc_list, bn_list, table_name)
+
+# Print the total count
+print(f'Total count: {total_count}')

@@ -78,3 +78,57 @@ for parquet_file in parquet_files:
 
 # Close the connection
 conn.close()
+
+
+
+
+import os
+import polars as pl
+import pandas as pd
+from snowflake.connector import connect
+from snowflake.connector.pandas_tools import write_pandas
+
+# Define your Snowflake connection parameters
+conn_params = {
+    'user': 'your_username',
+    'password': 'your_password',
+    'account': 'your_account_identifier',
+    'warehouse': 'your_warehouse',
+    'database': 'your_database',
+    'schema': 'your_schema'
+}
+
+# Directory containing Parquet files
+parquet_dir = '/path/to/your/parquet/files'
+chunk_size = 100000  # Adjust the chunk size as needed
+
+# List all Parquet files in the directory
+parquet_files = [f for f in os.listdir(parquet_dir) if f.endswith('.parquet')]
+
+# Create a connection to Snowflake
+conn = connect(**conn_params)
+
+# Iterate through each Parquet file
+for parquet_file in parquet_files:
+    try:
+        # Read the Parquet file in Polars DataFrame
+        parquet_file_path = os.path.join(parquet_dir, parquet_file)
+        df_polars = pl.read_parquet(parquet_file_path)
+
+        # Convert Polars DataFrame to Pandas DataFrame in chunks
+        for i in range(0, len(df_polars), chunk_size):
+            chunk_polars = df_polars[i:i+chunk_size]
+            chunk_pandas = chunk_polars.to_pandas()
+
+            # Write each chunk to Snowflake
+            success, nchunks, nrows, _ = write_pandas(conn, chunk_pandas, 'your_target_table')
+
+            # Print the result for each chunk
+            print(f"File: {parquet_file}, Chunk Rows: {len(chunk_pandas)} - Success: {success}, Chunks: {nchunks}, Rows: {nrows}")
+
+    except Exception as e:
+        print(f"Error processing file {parquet_file}: {e}")
+
+# Close the connection
+conn.close()
+

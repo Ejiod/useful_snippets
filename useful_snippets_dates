@@ -31,3 +31,50 @@ for i in range(0, len(parquet_files), chunk_size):
     print(f'Processed chunk {i//chunk_size + 1}: {len(file_chunk)} files')
 
 print('All chunks processed.')
+
+
+
+
+
+
+
+import os
+import pandas as pd
+from snowflake.connector import connect
+from snowflake.connector.pandas_tools import write_pandas
+
+# Define your Snowflake connection parameters
+conn_params = {
+    'user': 'your_username',
+    'password': 'your_password',
+    'account': 'your_account_identifier',
+    'warehouse': 'your_warehouse',
+    'database': 'your_database',
+    'schema': 'your_schema'
+}
+
+# Create a connection to Snowflake
+conn = connect(**conn_params)
+
+# Directory containing parquet files
+parquet_dir = '/path/to/your/parquet/files'
+
+# List all parquet files in the directory
+parquet_files = [f for f in os.listdir(parquet_dir) if f.endswith('.parquet')]
+
+# Iterate through each parquet file
+for parquet_file in parquet_files:
+    # Construct the full file path
+    file_path = os.path.join(parquet_dir, parquet_file)
+    
+    # Read the parquet file into a DataFrame
+    df = pd.read_parquet(file_path)
+
+    # Write the DataFrame to Snowflake
+    success, nchunks, nrows, _ = write_pandas(conn, df, 'your_target_table')
+
+    # Print the result for each file
+    print(f"File: {parquet_file} - Success: {success}, Chunks: {nchunks}, Rows: {nrows}")
+
+# Close the connection
+conn.close()

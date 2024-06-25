@@ -114,3 +114,71 @@ total_count = execute_chunked_query(connection_str, acc_list, bn_list, table_nam
 
 # Print the total count
 print(f'Total count: {total_count}')
+
+
+
+
+import cx_Oracle
+import pandas as pd
+
+# Function to chunk a list into smaller lists of a specified size
+def chunk_list(lst, chunk_size):
+    for i in range(0, len(lst), chunk_size):
+        yield lst[i:i + chunk_size]
+
+# Function to execute a chunked query and combine results
+def execute_chunked_query(connection, acc_bn_list, table_name):
+    # Split acc_bn_list into chunks of 20
+    acc_bn_chunks = list(chunk_list(acc_bn_list, 20))
+    
+    total_count = 0
+    
+    cursor = connection.cursor()
+    
+    for acc_bn_chunk in acc_bn_chunks:
+        # Create a placeholder string for the IN clause
+        acc_bn_placeholders = ','.join(f"'{acc_bn}'" for acc_bn in acc_bn_chunk)
+        
+        # Construct the SQL query
+        query = f"""
+        SELECT COUNT(*) AS cnt FROM {table_name}
+        WHERE Acc || Bn IN ({acc_bn_placeholders})
+        """
+        
+        # Execute the query
+        cursor.execute(query)
+        # Fetch the count result
+        count = cursor.fetchone()[0]
+        # Accumulate the count
+        total_count += count
+    
+    cursor.close()
+    
+    return total_count
+
+# Provide your Oracle database connection details
+dsn_tns = cx_Oracle.makedsn('host', 'port', service_name='service_name')
+connection = cx_Oracle.connect(user='username', password='password', dsn=dsn_tns)
+
+# Example DataFrame with more than 4000 entries
+df = pd.DataFrame({
+    'Acc': [f'A{i}' for i in range(1, 4001)],
+    'Bn': [f'B{i}' for i in range(1, 4001)]
+})
+
+# Concatenate Acc and Bn values
+df['AccBn'] = df['Acc'] + df['Bn']
+acc_bn_list = df['AccBn'].unique().tolist()
+
+# Table name
+table_name = 'your_table_name'
+
+# Execute the chunked query
+total_count = execute_chunked_query(connection, acc_bn_list, table_name)
+
+# Print the total count
+print(f'Total count: {total_count}')
+
+# Close the connection
+connection.close()
+

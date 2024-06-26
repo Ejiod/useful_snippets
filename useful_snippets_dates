@@ -216,5 +216,42 @@ while True:
 
 print("Export completed.")
 
+import pandas as pd
+import pyarrow.parquet as pq
 
+def read_and_export_in_chunks(query, connection, chunk_size=10000, parquet_file='output.parquet'):
+    # Create an empty list to store data frames
+    data_frames = []
+
+    # Initialize chunk number
+    chunk_number = 0
+
+    # Create a cursor
+    cursor = connection.cursor()
+    cursor.execute(query)
+
+    # Fetch and process the data in chunks
+    while True:
+        rows = cursor.fetchmany(chunk_size)
+        if not rows:
+            break
+
+        # Convert rows to a pandas DataFrame
+        df = pd.DataFrame(rows, columns=[desc[0] for desc in cursor.description])
+        data_frames.append(df)
+
+        # Save the DataFrame to a Parquet file
+        df.to_parquet(f'{parquet_file}_chunk{chunk_number}.parquet', index=False)
+        chunk_number += 1
+
+    # Optionally, concatenate all chunks and save as a single Parquet file
+    if data_frames:
+        full_df = pd.concat(data_frames, ignore_index=True)
+        full_df.to_parquet(parquet_file, index=False)
+
+    cursor.close()
+
+# Example usage
+query = "SELECT * FROM your_large_table"
+read_and_export_in_chunks(query, connection, chunk_size=10000, parquet_file='large_table_output.parquet')
 

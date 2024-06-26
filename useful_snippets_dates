@@ -182,3 +182,39 @@ print(f'Total count: {total_count}')
 # Close the connection
 connection.close()
 
+import pandas as pd
+import connectorx as cx
+import pyarrow.parquet as pq
+import pyarrow as pa
+
+# Define connection string and query
+connection_string = "oracle://username:password@hostname:port/service_name"
+table_name = "your_table"
+chunk_size = 10000
+offset = 0
+
+# Function to fetch a chunk of data
+def fetch_chunk(connection_string, table_name, chunk_size, offset):
+    query = f"SELECT * FROM {table_name} OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY"
+    return cx.read_sql(connection_string, query)
+
+# Loop to read chunks and write to Parquet
+chunk_number = 0
+while True:
+    df = fetch_chunk(connection_string, table_name, chunk_size, offset)
+    if df.empty:
+        break
+
+    # Convert DataFrame to Parquet
+    table = pa.Table.from_pandas(df)
+    pq.write_table(table, f'chunk_{chunk_number}.parquet')
+
+    print(f'Exported chunk_{chunk_number}.parquet')
+
+    chunk_number += 1
+    offset += chunk_size
+
+print("Export completed.")
+
+
+

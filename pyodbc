@@ -22,3 +22,32 @@ df = spark.read.jdbc(url=url, table=query, properties=properties)
 
 # Show the data
 df.show()
+
+from pyspark.sql import SparkSession
+
+# Initialize a Spark session
+spark = SparkSession.builder \
+    .appName("Read Oracle DB") \
+    .config("spark.jars", "/path/to/ojdbc8.jar") \
+    .getOrCreate()
+
+# Oracle database connection details
+url = "jdbc:oracle:thin:@//hostname:port/service_name"
+user = "your_username"
+password = "your_password"
+
+# Query to execute
+query = "(SELECT * FROM TableA WHERE Acc || Bn IN ('acc1', 'acc2', ..., 'acc4000'))"  # Replace with your query and values
+
+# Read data from Oracle database using the option method
+df = spark.read.format("jdbc") \
+    .option("url", url) \
+    .option("dbtable", query) \
+    .option("user", user) \
+    .option("password", password) \
+    .option("driver", "oracle.jdbc.driver.OracleDriver") \
+    .load()
+
+# Show the data
+df.show()
+

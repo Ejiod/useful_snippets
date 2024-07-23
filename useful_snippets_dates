@@ -36,3 +36,64 @@ def read_and_export_in_chunks(query, connection, chunk_size=10000, parquet_file=
 # Example usage
 query = "SELECT * FROM your_large_table"
 read_and_export_in_chunks(query, connection, chunk_size=10000, parquet_file='large_table_output.parquet')
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION clean_shift_and_validate_address(
+    a STRING, b STRING, c STRING, d STRING, e STRING, postcode STRING)
+RETURNS ARRAY
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.8'
+HANDLER = 'clean_shift_and_validate_handler'
+PACKAGES = ('pandas')
+AS
+$$
+import pandas as pd
+import re
+
+def clean_shift_and_validate_handler(a, b, c, d, e, postcode):
+    # Clean addresses
+    addresses = [a, b, c, d, e]
+    df = pd.DataFrame([addresses], columns=['A', 'B', 'C', 'D', 'E'])
+    
+    # Define a cleaning function
+    def clean_column(col):
+        col = col.str.strip()                # Trim whitespace
+        col = col.str.upper()                # Convert to uppercase
+        col = col.str.replace(r'[^\w\s]', '') # Remove special characters
+        col = col.fillna('')                 # Handle missing values
+        return col
+    
+    # Apply the cleaning function to each column
+    for column in df.columns:
+        df[column] = clean_column(df[column])
+    
+    # Shift addresses to the left if there are blanks
+    addresses = df.values.tolist()[0]
+    cleaned_addresses = [address for address in addresses if address] + [''] * (len(addresses) - len([address for address in addresses if address]))
+    
+    # Validate UK postcode
+    postcode_regex = re.compile(r'^(GIR 0AA|[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2})$')
+    is_valid_postcode = bool(postcode_regex.match(postcode)) if postcode else False
+    
+    # Return cleaned and shifted addresses and postcode validation status
+    return cleaned_addresses + [is_valid_postcode]
+$$;
+
+
+
+SELECT 
+    t.*,
+    cleaned_and_validated[0] AS cleaned_A,
+    cleaned_and_validated[1] AS cleaned_B,
+    cleaned_and_validated[2] AS cleaned_C,
+    cleaned_and_validated[3] AS cleaned_D,
+    cleaned_and_validated[4] AS cleaned_E,
+    cleaned_and_validated[5] AS is_valid_postcode
+FROM addresses_table t,
+LATERAL (
+    SELECT clean_shift_and_validate_address(A, B, C, D, E, postcode_column) AS cleaned_and_validated
+);

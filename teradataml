@@ -27,14 +27,18 @@ database_name = "your_database_name"
 # Loop through table names, read data, and append to the list
 for table_name in table_names:
     query = f"SELECT customer_id, acc FROM {table_name}"
-    df = wr.athena.read_sql_query(query, database=database_name)
-    dataframes.append(df)
+    try:
+        df = wr.athena.read_sql_query(query, database=database_name)
+        dataframes.append(df)
+    except Exception as e:
+        print(f"Table {table_name} does not exist or cannot be read. Skipping. Error: {e}")
 
 # Concatenate all DataFrames
-combined_df = pd.concat(dataframes, ignore_index=True)
-
-# Optionally, drop duplicates if needed
-combined_df = combined_df.drop_duplicates()
-
-# Now combined_df contains the combined data from all tables
-print(combined_df)
+if dataframes:
+    combined_df = pd.concat(dataframes, ignore_index=True)
+    # Optionally, drop duplicates if needed
+    combined_df = combined_df.drop_duplicates()
+    # Now combined_df contains the combined data from all existing tables
+    print(combined_df)
+else:
+    print("No tables were found or read successfully.")

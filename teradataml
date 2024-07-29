@@ -1,28 +1,26 @@
+import awswrangler as wr
 import pandas as pd
 
-def clean_phone_number(phone, country_flag):
-    # Check if phone number is None or an empty string
-    if not phone or pd.isnull(phone):
-        return phone
-    
-    # Check if the number is from UK
-    if country_flag == 1:
-        if phone.startswith('44'):
-            return '+' + phone
-        elif phone.startswith('07'):
-            return '+447' + phone[2:]
-        elif phone.startswith('7'):
-            return '+447' + phone[1:]
-        else:
-            return phone
-    else:
-        return phone
+# List of table names
+table_names = [f"table{i}" for i in range(1, 101)]
 
-# Create DataFrame (Replace with your SQL query result)
-df = pd.read_sql("SELECT * FROM your_table_name", connection)
+# List to hold DataFrames
+dataframes = []
 
-# Apply the cleaning function to the 'Phone' column with 'country_flag' as an additional argument
-df['Cleaned_Phone'] = df.apply(lambda row: clean_phone_number(row['Phone'], row['country_flag']), axis=1)
+# Database name
+database_name = "your_database_name"
 
-# Display the DataFrame
-print(df)
+# Loop through table names, read data, and append to the list
+for table_name in table_names:
+    query = f"SELECT customer_id, acc FROM {table_name}"
+    df = wr.athena.read_sql_query(query, database=database_name)
+    dataframes.append(df)
+
+# Concatenate all DataFrames
+combined_df = pd.concat(dataframes, ignore_index=True)
+
+# Optionally, drop duplicates if needed
+combined_df = combined_df.drop_duplicates()
+
+# Now combined_df contains the combined data from all tables
+print(combined_df)

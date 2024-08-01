@@ -6,7 +6,7 @@ PACKAGES = ('snowflake-snowpark-python', 'regex')
 HANDLER = 'clean_and_shift'
 AS
 $$
-from snowflake.snowpark.functions import col, trim, when, lit, coalesce, udf
+from snowflake.snowpark.functions import col, trim, when, lit, udf
 from snowflake.snowpark.types import StringType, BooleanType
 import regex as re
 
@@ -42,64 +42,52 @@ def clean_and_shift(session, table_name):
     for column in all_columns:
         df = df.withColumn(column, trim(col(column)))
 
-    # Define regular expressions to detect address, postcode, and customer ID columns
-    address_pattern = re.compile(r'(?i)(address|add|addr)[_\s]*line[\s_]*[1-5]?')
-    postcode_pattern = re.compile(r'(?i)(post[\s_]*code|postcode)[1-5]?')
-    customer_id_pattern = re.compile(r'(?i)(customer[\s_]*id|customer-id|cin)')
-
-    # Identify columns based on patterns
-    address_columns = [col for col in all_columns if address_pattern.match(col)]
-    postcode_columns = [col for col in all_columns if postcode_pattern.match(col)]
-    customer_id_columns = [col for col in all_columns if customer_id_pattern.match(col)]
-
-    # Ensure that the address columns list has a minimum of 5 placeholders if fewer columns are detected
-    for i in range(len(address_columns), 5):
-        address_columns.append(f'ADDRESS_LINE_{i+1}')
-        df = df.withColumn(f'ADDRESS_LINE_{i+1}', lit(''))
+    # Define address columns
+    address_columns = ['ADDRESS_LINE_1', 'ADDRESS_LINE_2', 'ADDRESS_LINE_3', 'ADDRESS_LINE_4', 'ADDRESS_LINE_5']
 
     # Shift address lines
     for i in range(len(address_columns) - 1):
         for j in range(i + 1, len(address_columns)):
             df = df.withColumn(
                 address_columns[i],
-                when((coalesce(col(address_columns[i]), '') == '') & (coalesce(col(address_columns[j]), '') != ''), 
+                when((col(address_columns[i]) == '') & (col(address_columns[j]) != ''), 
                      col(address_columns[j]))
                 .otherwise(col(address_columns[i]))
             )
             df = df.withColumn(
                 address_columns[j],
-                when((coalesce(col(address_columns[i]), '') == coalesce(col(address_columns[j]), '')) & (coalesce(col(address_columns[j]), '') != ''), 
+                when((col(address_columns[i]) == col(address_columns[j])) & (col(address_columns[j]) != ''), 
                      lit(''))
                 .otherwise(col(address_columns[j]))
             )
 
-    # Format and validate postcodes
-    for postcode_column in postcode_columns:
-        df = df.withColumn(postcode_column, format_uk_postcode(col(postcode_column)))
-        df = df.withColumn('IS_VALID_POSTCODE', is_valid_uk_postcode(col(postcode_column)))
+    # Format postcodes
+    df = df.withColumn('POST_CODE', format_uk_postcode(col('POST_CODE')))
+
+    # Validate postcodes
+    df = df.withColumn('IS_VALID_POSTCODE', is_valid_uk_postcode(col('POST_CODE')))
 
     # Check if there are any invalid postcodes
-    if customer_id_columns:
-        customer_id_column = customer_id_columns[0]
-    else:
-        customer_id_column = 'CUSTOMER_ID'
-
-    invalid_postcodes = df.filter(~col('IS_VALID_POSTCODE')).select(customer_id_column, postcode_columns[0]).collect()
+    invalid_postcodes = df.filter(~col('IS_VALID_POSTCODE')).collect()
 
     if invalid_postcodes:
         invalid_records = "Invalid postcodes found:\n"
         for row in invalid_postcodes:
-            invalid_records += f"{customer_id_column}: {row[customer_id_column]}, Postcode: {row[postcode_columns[0]]}\n"
+            invalid_records += f"Customer_ID: {row['CUSTOMER_ID']}, Postcode: {row['POST_CODE']}\n"
         return invalid_records
 
-    # If all postcodes are valid, remove the validation column and save the table
+    # If all postcodes are valid, remove the validation column
     df = df.drop('IS_VALID_POSTCODE')
 
     # Reorder columns to match original order
     df = df.select([col(c) for c in all_columns])
 
-    # Overwrite the original table with the cleaned and shifted data
-    df.write.mode("overwrite").save_as_table(table_name)
+    # Overwrite the original table with the cleaned and shifted data without dropping the table
+    temp_table_name = table_name + "_temp"
+    df.write.mode("overwrite").save_as_table(temp_table_name)
+    
+    # Swap the temporary table with the original table to preserve the schema and other properties
+    session.sql(f"ALTER TABLE {table_name} SWAP WITH {temp_table_name}").collect()
 
     return f"Successfully cleaned, shifted addresses, formatted and validated postcodes in {table_name}"
 $$;

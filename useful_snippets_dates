@@ -2,16 +2,18 @@ CREATE OR REPLACE PROCEDURE clean_and_shift_addresses(table_name STRING)
 RETURNS STRING
 LANGUAGE PYTHON
 RUNTIME_VERSION = '3.8'
-PACKAGES = ('snowflake-snowpark-python', 'regex')
+PACKAGES = ('snowflake-snowpark-python', 'regex', 'pandas')
 HANDLER = 'clean_and_shift'
 AS
 $$
-from snowflake.snowpark.functions import col, trim, when, lit, udf
+from snowflake.snowpark import Session
+from snowflake.snowpark.functions import col, trim, udf
 from snowflake.snowpark.types import StringType, BooleanType
 import regex as re
+import pandas as pd
 
-def clean_and_shift(session, table_name):
-    # Define the UDF for postcode validation
+def clean_and_shift(session: Session, table_name: str) -> str:
+    # UDFs for postcode validation and formatting (unchanged)
     @udf(return_type=BooleanType(), input_types=[StringType()])
     def is_valid_uk_postcode(postcode: str) -> bool:
         pattern = r'^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$'
@@ -19,89 +21,67 @@ def clean_and_shift(session, table_name):
             return False
         return re.match(pattern, postcode.strip().upper()) is not None
 
-    # Define the UDF for postcode formatting
     @udf(return_type=StringType(), input_types=[StringType()])
     def format_uk_postcode(postcode: str) -> str:
         if postcode is None:
             return None
         postcode = postcode.strip().upper()
-        # Remove any existing spaces
         postcode = postcode.replace(" ", "")
-        # Insert a space in the correct position
         if len(postcode) > 3:
             return postcode[:-3] + " " + postcode[-3:]
         return postcode
 
-    # Get the table
-    df = session.table(table_name)
+    # Get the table as a DataFrame
+    df = session.table(table_name).to_pandas()
 
-    # Get all columns in their original order
-    all_columns = df.columns
+    # Replace 'null' and 'NULL' strings with actual None values
+    df = df.replace({'null': None, 'NULL': None})
 
     # Strip spaces from all columns
-    for column in all_columns:
-        df = df.withColumn(column, trim(col(column)))
+    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
 
-    # Identify address columns dynamically
-    address_columns = [col_name for col_name in all_columns if re.search(r'(?i)address[ _]?line[0-9]*|add[ _]?line[0-9]*', col_name)]
-    address_columns.sort()  # Ensure they are in the correct order
+    # Dynamically identify address columns
+    address_columns = [col for col in df.columns if re.match(r'(?i)add(?:ress)?[_\s]?line[_\s]?\d+', col)]
+    address_columns.sort(key=lambda x: int(re.search(r'\d+', x).group()))
 
-    # Shift address lines
-    for i in range(len(address_columns) - 1):
-        for j in range(i + 1, len(address_columns)):
-            df = df.withColumn(
-                address_columns[i],
-                when((col(address_columns[i]) == '') & (col(address_columns[j]) != ''), 
-                     col(address_columns[j]))
-                .otherwise(col(address_columns[i]))
-            )
-            df = df.withColumn(
-                address_columns[j],
-                when((col(address_columns[i]) == col(address_columns[j])) & (col(address_columns[j]) != ''), 
-                     lit(''))
-                .otherwise(col(address_columns[j]))
-            )
+    if address_columns:
+        # Shift address lines
+        df[address_columns] = df[address_columns].apply(lambda row: pd.Series([x for x in row if pd.notnull(x) and x != ''] + [None]*(len(row) - len([x for x in row if pd.notnull(x) and x != '']))), axis=1)
+    else:
+        print("No address columns found matching the expected pattern.")
 
-    # Identify postcode columns dynamically
-    postcode_columns = [col_name for col_name in all_columns if re.search(r'(?i)post[ _]?code[0-9]*', col_name)]
+    # Identify postcode column
+    postcode_column = next((col for col in df.columns if re.match(r'(?i)post[_\s]?code', col)), None)
 
-    for postcode_column in postcode_columns:
+    if postcode_column:
         # Format postcodes
-        df = df.withColumn(postcode_column, format_uk_postcode(col(postcode_column)))
+        df[postcode_column] = df[postcode_column].apply(format_uk_postcode.func)
 
         # Validate postcodes
-        df = df.withColumn(f'IS_VALID_{postcode_column.upper()}', is_valid_uk_postcode(col(postcode_column)))
+        df['IS_VALID_POSTCODE'] = df[postcode_column].apply(is_valid_uk_postcode.func)
 
-    # Identify customer ID columns dynamically
-    customer_id_columns = [col_name for col_name in all_columns if re.search(r'(?i)customer[ _]?id|CIN', col_name)]
-    
-    # Check if there are any invalid postcodes
-    invalid_postcodes = []
-    for postcode_column in postcode_columns:
-        invalid_postcodes.extend(df.filter(~col(f'IS_VALID_{postcode_column.upper()}')).collect())
+        # Check if there are any invalid postcodes
+        invalid_postcodes = df[~df['IS_VALID_POSTCODE']]
 
-    if invalid_postcodes:
-        invalid_records = "Invalid postcodes found:\n"
-        for row in invalid_postcodes:
-            for postcode_column in postcode_columns:
-                if not row[f'IS_VALID_{postcode_column.upper()}']:
-                    for customer_id_column in customer_id_columns:
-                        invalid_records += f"{customer_id_column}: {row[customer_id_column]}, {postcode_column}: {row[postcode_column]}\n"
-        return invalid_records
+        if not invalid_postcodes.empty:
+            error_message = "Invalid postcodes found for the following Customer_IDs:\n"
+            for _, row in invalid_postcodes.iterrows():
+                error_message += f"Customer_ID: {row['CUSTOMER_ID']}, Postcode: {row[postcode_column]}\n"
+            raise ValueError(error_message)
 
-    # If all postcodes are valid, remove the validation columns
-    for postcode_column in postcode_columns:
-        df = df.drop(f'IS_VALID_{postcode_column.upper()}')
+        # If all postcodes are valid, remove the validation column
+        df = df.drop(columns=['IS_VALID_POSTCODE'])
+    else:
+        print("No postcode column found matching the expected pattern.")
 
-    # Reorder columns to match original order
-    df = df.select([col(c) for c in all_columns])
+    # Convert the DataFrame back to a Snowflake DataFrame
+    snowflake_df = session.create_dataframe(df)
 
-    # Overwrite the original table with the cleaned and shifted data without dropping the table
-    temp_table_name = table_name + "_temp"
-    df.write.mode("overwrite").save_as_table(temp_table_name)
-    
-    # Swap the temporary table with the original table to preserve the schema and other properties
-    session.sql(f"ALTER TABLE {table_name} SWAP WITH {temp_table_name}").collect()
+    # Overwrite the original table with the cleaned and shifted data
+    snowflake_df.write.mode("overwrite").save_as_table(table_name)
 
-    return f"Successfully cleaned, shifted addresses, formatted and validated postcodes in {table_name}"
+    return f"Successfully cleaned and processed address data in {table_name}"
 $$;
+
+
+call clean_and_shift_addresses('addresses')

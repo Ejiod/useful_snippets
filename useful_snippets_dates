@@ -42,8 +42,9 @@ def clean_and_shift(session, table_name):
     for column in all_columns:
         df = df.withColumn(column, trim(col(column)))
 
-    # Define address columns
-    address_columns = ['ADDRESS_LINE_1', 'ADDRESS_LINE_2', 'ADDRESS_LINE_3', 'ADDRESS_LINE_4', 'ADDRESS_LINE_5']
+    # Identify address columns dynamically
+    address_columns = [col_name for col_name in all_columns if re.search(r'(?i)address[ _]?line[0-9]*|add[ _]?line[0-9]*', col_name)]
+    address_columns.sort()  # Ensure they are in the correct order
 
     # Shift address lines
     for i in range(len(address_columns) - 1):
@@ -61,23 +62,36 @@ def clean_and_shift(session, table_name):
                 .otherwise(col(address_columns[j]))
             )
 
-    # Format postcodes
-    df = df.withColumn('POST_CODE', format_uk_postcode(col('POST_CODE')))
+    # Identify postcode columns dynamically
+    postcode_columns = [col_name for col_name in all_columns if re.search(r'(?i)post[ _]?code[0-9]*', col_name)]
 
-    # Validate postcodes
-    df = df.withColumn('IS_VALID_POSTCODE', is_valid_uk_postcode(col('POST_CODE')))
+    for postcode_column in postcode_columns:
+        # Format postcodes
+        df = df.withColumn(postcode_column, format_uk_postcode(col(postcode_column)))
 
+        # Validate postcodes
+        df = df.withColumn(f'IS_VALID_{postcode_column.upper()}', is_valid_uk_postcode(col(postcode_column)))
+
+    # Identify customer ID columns dynamically
+    customer_id_columns = [col_name for col_name in all_columns if re.search(r'(?i)customer[ _]?id|CIN', col_name)]
+    
     # Check if there are any invalid postcodes
-    invalid_postcodes = df.filter(~col('IS_VALID_POSTCODE')).collect()
+    invalid_postcodes = []
+    for postcode_column in postcode_columns:
+        invalid_postcodes.extend(df.filter(~col(f'IS_VALID_{postcode_column.upper()}')).collect())
 
     if invalid_postcodes:
         invalid_records = "Invalid postcodes found:\n"
         for row in invalid_postcodes:
-            invalid_records += f"Customer_ID: {row['CUSTOMER_ID']}, Postcode: {row['POST_CODE']}\n"
+            for postcode_column in postcode_columns:
+                if not row[f'IS_VALID_{postcode_column.upper()}']:
+                    for customer_id_column in customer_id_columns:
+                        invalid_records += f"{customer_id_column}: {row[customer_id_column]}, {postcode_column}: {row[postcode_column]}\n"
         return invalid_records
 
-    # If all postcodes are valid, remove the validation column
-    df = df.drop('IS_VALID_POSTCODE')
+    # If all postcodes are valid, remove the validation columns
+    for postcode_column in postcode_columns:
+        df = df.drop(f'IS_VALID_{postcode_column.upper()}')
 
     # Reorder columns to match original order
     df = df.select([col(c) for c in all_columns])

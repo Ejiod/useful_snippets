@@ -95,3 +95,109 @@ call clean_and_shift_addresses('addresses')
 
 
 select * from addresses
+
+
+
+
+
+
+
+
+CREATE OR REPLACE PROCEDURE clean_and_shift_addresses(table_name STRING)
+RETURNS STRING
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.8'
+PACKAGES = ('snowflake-snowpark-python', 'regex')
+HANDLER = 'clean_and_shift'
+AS
+$$
+from snowflake.snowpark.functions import col, trim, when, lit, udf
+from snowflake.snowpark.types import StringType, BooleanType
+import regex as re
+
+def clean_and_shift(session, table_name):
+    # Define the UDF for postcode validation
+    @udf(return_type=BooleanType(), input_types=[StringType()])
+    def is_valid_uk_postcode(postcode: str) -> bool:
+        pattern = r'^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$'
+        if postcode is None:
+            return False
+        return re.match(pattern, postcode.strip().upper()) is not None
+
+    # Define the UDF for postcode formatting
+    @udf(return_type=StringType(), input_types=[StringType()])
+    def format_uk_postcode(postcode: str) -> str:
+        if postcode is None:
+            return None
+        postcode = postcode.strip().upper()
+        # Remove any existing spaces
+        postcode = postcode.replace(" ", "")
+        # Insert a space in the correct position
+        if len(postcode) > 3:
+            return postcode[:-3] + " " + postcode[-3:]
+        return postcode
+
+    # Get the table
+    df = session.table(table_name)
+
+    # Get all columns in their original order
+    all_columns = df.columns
+
+    # Strip spaces from all columns
+    for column in all_columns:
+        df = df.withColumn(column, trim(col(column)))
+
+    # Define a regular expression to detect address columns
+    address_pattern = re.compile(r'(?i)(address|add|addr)[_\s]*line[\s_]*[1-5]?')
+
+    # Identify address columns based on the pattern
+    address_columns = [col for col in all_columns if address_pattern.match(col)]
+
+    # Ensure that the address columns list has a minimum of 5 placeholders if fewer columns are detected
+    for i in range(len(address_columns), 5):
+        address_columns.append(f'ADDRESS_LINE_{i+1}')
+        df = df.withColumn(f'ADDRESS_LINE_{i+1}', lit(''))
+
+    # Shift address lines
+    for i in range(len(address_columns) - 1):
+        for j in range(i + 1, len(address_columns)):
+            df = df.withColumn(
+                address_columns[i],
+                when((col(address_columns[i]) == '') & (col(address_columns[j]) != ''), 
+                     col(address_columns[j]))
+                .otherwise(col(address_columns[i]))
+            )
+            df = df.withColumn(
+                address_columns[j],
+                when((col(address_columns[i]) == col(address_columns[j])) & (col(address_columns[j]) != ''), 
+                     lit(''))
+                .otherwise(col(address_columns[j]))
+            )
+
+    # Format postcodes
+    df = df.withColumn('POST_CODE', format_uk_postcode(col('POST_CODE')))
+
+    # Validate postcodes
+    df = df.withColumn('IS_VALID_POSTCODE', is_valid_uk_postcode(col('POST_CODE')))
+
+    # Check if there are any invalid postcodes
+    invalid_postcodes = df.filter(~col('IS_VALID_POSTCODE')).collect()
+
+    if invalid_postcodes:
+        invalid_records = "Invalid postcodes found:\n"
+        for row in invalid_postcodes:
+            invalid_records += f"Customer_ID: {row['CUSTOMER_ID']}, Postcode: {row['POST_CODE']}\n"
+        return invalid_records
+
+    # If all postcodes are valid, remove the validation column and save the table
+    df = df.drop('IS_VALID_POSTCODE')
+
+    # Reorder columns to match original order
+    df = df.select([col(c) for c in all_columns])
+
+    # Overwrite the original table with the cleaned and shifted data
+    df.write.mode("overwrite").save_as_table(table_name)
+
+    return f"Successfully cleaned, shifted addresses, formatted and validated postcodes in {table_name}"
+$$;
+

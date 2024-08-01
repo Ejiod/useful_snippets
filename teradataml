@@ -1,44 +1,51 @@
-import awswrangler as wr
-import pandas as pd
-from datetime import datetime, timedelta
+CREATE OR REPLACE PROCEDURE format_telephone_numbers(table_name STRING)
+RETURNS STRING
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.8'
+PACKAGES = ('snowflake-snowpark-python', 'phonenumbers')
+HANDLER = 'format_telephone_numbers_handler'
+AS
+$$
+from snowflake.snowpark.functions import col, udf
+from snowflake.snowpark.types import StringType
+import phonenumbers
+import re
 
-# Function to generate table names
-def generate_table_names(start_date: str, end_date: str):
-    start = datetime.strptime(start_date, "%Y%m")
-    end = datetime.strptime(end_date, "%Y%m")
-    table_names = []
-    while start <= end:
-        table_name = f"table_{start.strftime('%Y%m')}"
-        table_names.append(table_name)
-        # Increment by one month
-        start += timedelta(days=32)
-        start = start.replace(day=1)
-    return table_names
+def format_telephone_numbers_handler(session, table_name):
+    # Define the UDF for telephone number formatting using the phonenumbers library
+    @udf(return_type=StringType(), input_types=[StringType()])
+    def format_telephone_number(phone: str) -> str:
+        if not phone:
+            return None
+        try:
+            # Try to parse the phone number as a possible UK number first
+            phone_number = phonenumbers.parse(phone, "GB")
+            if not phonenumbers.is_valid_number(phone_number):
+                # If not valid, parse as an international number
+                phone_number = phonenumbers.parse(phone)
+            
+            if phonenumbers.is_valid_number(phone_number):
+                return phonenumbers.format_number(phone_number, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+        except phonenumbers.NumberParseException:
+            return phone  # If parsing fails, return the original phone number
+        return phone
 
-# Generate table names from October 2008 to October 2024
-table_names = generate_table_names("200810", "202410")
+    # Get the table
+    df = session.table(table_name)
 
-# List to hold DataFrames
-dataframes = []
+    # Retrieve all column names
+    all_columns = df.columns
 
-# Database name
-database_name = "your_database_name"
+    # Detect phone number columns based on a naming convention or pattern
+    phone_number_patterns = re.compile(r'PHONE|MOBILE|TEL', re.IGNORECASE)
+    phone_number_columns = [col for col in all_columns if phone_number_patterns.search(col)]
 
-# Loop through table names, read data, and append to the list
-for table_name in table_names:
-    query = f"SELECT customer_id, acc FROM {table_name}"
-    try:
-        df = wr.athena.read_sql_query(query, database=database_name)
-        dataframes.append(df)
-    except Exception as e:
-        print(f"Table {table_name} does not exist or cannot be read. Skipping. Error: {e}")
+    # Format telephone numbers in the detected columns
+    for column in phone_number_columns:
+        df = df.withColumn(column, format_telephone_number(col(column)))
 
-# Concatenate all DataFrames
-if dataframes:
-    combined_df = pd.concat(dataframes, ignore_index=True)
-    # Optionally, drop duplicates if needed
-    combined_df = combined_df.drop_duplicates()
-    # Now combined_df contains the combined data from all existing tables
-    print(combined_df)
-else:
-    print("No tables were found or read successfully.")
+    # Overwrite the original table with the formatted data
+    df.write.mode("overwrite").save_as_table(table_name)
+
+    return f"Successfully formatted telephone numbers in {table_name}"
+$$;

@@ -37,93 +37,21 @@ def format_telephone_numbers_handler(session, table_name):
     all_columns = df.columns
 
     # Detect phone number columns based on a naming convention or pattern
-    phone_number_patterns = re.compile(r'PHONE|MOBILE|TEL', re.IGNORECASE)
+    phone_number_patterns = re.compile(r'PHONE|MOBILE|TEL|NUMBER', re.IGNORECASE)
     phone_number_columns = [col for col in all_columns if phone_number_patterns.search(col)]
 
     # Format telephone numbers in the detected columns
     for column in phone_number_columns:
         df = df.withColumn(column, format_telephone_number(col(column)))
 
+    # Reconstruct the DataFrame to maintain the original column order
+    df = df.select(*all_columns)
+
     # Overwrite the original table with the formatted data
     df.write.mode("overwrite").save_as_table(table_name)
 
     return f"Successfully formatted telephone numbers in {table_name}"
 $$;
-
-
-
-
-
-
-----2nd 
-
-CREATE OR REPLACE PROCEDURE format_telephone_numbers(table_name STRING)
-RETURNS STRING
-LANGUAGE PYTHON
-RUNTIME_VERSION = '3.8'
-PACKAGES = ('snowflake-snowpark-python', 'phonenumbers')
-HANDLER = 'format_telephone_numbers_handler'
-AS
-$$
-from snowflake.snowpark.functions import col, udf
-from snowflake.snowpark.types import StringType
-import phonenumbers
-import re
-
-def format_telephone_numbers_handler(session, table_name):
-    # Define the UDF for telephone number formatting using the phonenumbers library
-    @udf(return_type=StringType(), input_types=[StringType()])
-    def format_telephone_number(phone: str) -> str:
-        if not phone:
-            return None
-        try:
-            # Try to parse the phone number as a possible UK number first
-            phone_number = phonenumbers.parse(phone, "GB")
-            if not phonenumbers.is_valid_number(phone_number):
-                # If not valid, parse as an international number
-                phone_number = phonenumbers.parse(phone)
-            
-            if phonenumbers.is_valid_number(phone_number):
-                return phonenumbers.format_number(phone_number, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-        except phonenumbers.NumberParseException:
-            return phone  # If parsing fails, return the original phone number
-        return phone
-
-    # Get the table
-    df = session.table(table_name)
-
-    # Retrieve all column names
-    all_columns = df.columns
-
-    # Detect phone number columns based on a naming convention or pattern
-    phone_number_patterns = re.compile(r'PHONE|MOBILE|TEL', re.IGNORECASE)
-    phone_number_columns = [col for col in all_columns if phone_number_patterns.search(col)]
-
-    # Create a dictionary to store the transformed columns
-    transformed_columns = {}
-
-    # Format telephone numbers in the detected columns and store them in the dictionary
-    for column in phone_number_columns:
-        transformed_columns[column] = format_telephone_number(col(column))
-
-    # Reconstruct the DataFrame with the original column order
-    transformed_df = df.select(
-        *[transformed_columns.get(column, col(column)) for column in all_columns]
-    )
-
-    # Overwrite the original table with the formatted data
-    transformed_df.write.mode("overwrite").save_as_table(table_name)
-
-    return f"Successfully formatted telephone numbers in {table_name}"
-$$;
-
-
-
-
-
-
---3rd
-
 
 
 
@@ -136,41 +64,49 @@ HANDLER = 'format_telephone_numbers_handler'
 AS
 $$
 import pandas as pd
-from snowflake.snowpark.functions import col, udf
+from snowflake.snowpark.functions import pandas_udf
+from snowflake.snowpark.types import PandasSeriesType
 import phonenumbers
 import re
 
 def format_telephone_numbers_handler(session, table_name):
-    # Define the UDF for telephone number formatting using the phonenumbers library
-    def format_telephone_number(phone: str) -> str:
-        if not phone:
-            return None
-        try:
-            # Try to parse the phone number as a possible UK number first
-            phone_number = phonenumbers.parse(phone, "GB")
-            if not phonenumbers.is_valid_number(phone_number):
-                # If not valid, parse as an international number
-                phone_number = phonenumbers.parse(phone)
-            
-            if phonenumbers.is_valid_number(phone_number):
-                return phonenumbers.format_number(phone_number, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-        except phonenumbers.NumberParseException:
-            return phone  # If parsing fails, return the original phone number
-        return phone
+    # Define the Pandas UDF for telephone number formatting using the phonenumbers library
+    @pandas_udf(return_type=PandasSeriesType(), input_types=[PandasSeriesType()])
+    def format_telephone_number(phone_series: pd.Series) -> pd.Series:
+        def format_number(phone: str) -> str:
+            if not phone:
+                return None
+            try:
+                # Try to parse the phone number as a possible UK number first
+                phone_number = phonenumbers.parse(phone, "GB")
+                if not phonenumbers.is_valid_number(phone_number):
+                    # If not valid, parse as an international number
+                    phone_number = phonenumbers.parse(phone)
+                
+                if phonenumbers.is_valid_number(phone_number):
+                    return phonenumbers.format_number(phone_number, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+            except phonenumbers.NumberParseException:
+                return phone  # If parsing fails, return the original phone number
+            return phone
+        
+        return phone_series.apply(format_number)
 
-    # Get the table as a Pandas DataFrame
+    # Get the table
     df = session.table(table_name).to_pandas()
 
+    # Retrieve all column names
+    all_columns = df.columns.tolist()
+
     # Detect phone number columns based on a naming convention or pattern
-    phone_number_patterns = re.compile(r'PHONE|MOBILE|TEL', re.IGNORECASE)
-    phone_number_columns = [col for col in df.columns if phone_number_patterns.search(col)]
+    phone_number_patterns = re.compile(r'PHONE|MOBILE|TEL|NUMBER', re.IGNORECASE)
+    phone_number_columns = [col for col in all_columns if phone_number_patterns.search(col)]
 
     # Format telephone numbers in the detected columns
     for column in phone_number_columns:
-        df[column] = df[column].apply(format_telephone_number)
+        df[column] = format_telephone_number(df[column])
 
-    # Write the DataFrame back to Snowflake
-    session.write_pandas(df, table_name, overwrite=True)
+    # Overwrite the original table with the formatted data
+    session.write_pandas(df, table_name, mode="overwrite")
 
     return f"Successfully formatted telephone numbers in {table_name}"
 $$;

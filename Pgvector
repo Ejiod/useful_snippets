@@ -1,53 +1,43 @@
-CREATE OR REPLACE PROCEDURE clean_name(tablename STRING)
+CREATE OR REPLACE PROCEDURE clean_table_columns(table_name STRING)
 RETURNS STRING
 LANGUAGE PYTHON
 RUNTIME_VERSION = '3.8'
-PACKAGES = ('snowflake-snowpark-python', 'pandas')
-HANDLER = 'clean_name_procedure'
+PACKAGES = ('snowflake-snowpark-python', 're')
+HANDLER = 'clean_columns'
 AS
 $$
+import snowflake.snowpark as snowpark
+from snowflake.snowpark.functions import col, initcap, trim
 import re
-import pandas as pd
-from snowflake.snowpark.session import Session
 
-def clean_name_procedure(session: Session, tablename: str) -> str:
-    name_patterns = {
-        'first_name': r'^(?:first[_\s]?(?:name|nm)|fore[_\s]?(?:name|nm)|given[_\s]?(?:name|nm))$',
-        'last_name': r'^(?:last[_\s]?(?:name|nm)|sur[_\s]?(?:name|nm)|family[_\s]?(?:name|nm))$',
-        'middle_name': r'^middle[_\s]?(?:name|nm)$'
+def clean_columns(session: snowpark.Session, table_name: str) -> str:
+    df = session.table(table_name)
+    columns = df.columns
+    
+    # Define regex patterns for possible column names
+    column_patterns = {
+        'firstname': r'first[_\-\s]?name|first[_\-\s]?nm|forname|given[_\-\s]?name',
+        'lastname': r'last[_\-\s]?name|last[_\-\s]?nm|surname',
+        'middlename': r'middle[_\-\s]?name|middle[_\-\s]?nm',
+        'title': r'title|job[_\-\s]?title|position[_\-\s]?title'
     }
     
-    # Fetch the table into a pandas DataFrame
-    df = session.table(tablename).to_pandas()
+    # Function to find and clean columns based on regex patterns
+    def clean_and_rename(df, target_column, pattern):
+        for col_name in columns:
+            if re.match(pattern, col_name, re.IGNORECASE):
+                df = df.withColumn(target_column, initcap(trim(col(col_name))))
+                break
+        return df
     
-    # Function to clean and format name fields
-    def clean_name(name):
-        if pd.isna(name):
-            return name
-        # Strip leading and trailing spaces, and convert to title case
-        return str(name).strip().title()
+    # Clean and format the columns dynamically
+    for target_column, pattern in column_patterns.items():
+        df = clean_and_rename(df, target_column, pattern)
     
-    # Rename columns based on patterns and clean name fields
-    rename_mappings = {}
-    for column in df.columns:
-        for name_type, pattern in name_patterns.items():
-            if re.match(pattern, column, re.IGNORECASE):
-                rename_mappings[column] = name_type
-                df[column] = df[column].apply(clean_name)
+    # Write the cleaned data back to the table
+    cleaned_table_name = f"{table_name}_cleaned"
+    df.write.mode('overwrite').save_as_table(cleaned_table_name)
     
-    # Apply renaming
-    df.rename(columns=rename_mappings, inplace=True)
-    
-    # Clean columns with "Title" in their name by making their values title case
-    for column in df.columns:
-        if 'title' in column.lower():
-            df[column] = df[column].apply(lambda x: x.title() if isinstance(x, str) else x)
-    
-    # Ensure column names are upper case to avoid identifier issues in Snowflake
-    df.columns = map(str.upper, df.columns)
-    
-    # Write the cleaned DataFrame back to the Snowflake table
-    session.write_pandas(df, tablename, overwrite=True)
-    
-    return "Table cleaned, columns renamed, and names formatted successfully."
+    return f"Table {table_name} cleaned and formatted successfully into {cleaned_table_name}."
+
 $$;

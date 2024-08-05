@@ -1,17 +1,54 @@
--- Create or replace the stored procedure
-CREATE OR REPLACE PROCEDURE CLEAN_NAMES(TABLENAME STRING)
+CREATE OR REPLACE PROCEDURE clean_name(tablename STRING)
 RETURNS STRING
 LANGUAGE PYTHON
 RUNTIME_VERSION = '3.8'
 PACKAGES = ('snowflake-snowpark-python')
-HANDLER = 'clean_names'
+HANDLER = 'clean_name_procedure'
 AS
 $$
-from snowflake.snowpark import Session
-from snowflake.snowpark.functions import col
 import re
+import snowflake.snowpark as snowpark
 
-def clean_names(session: Session, tablename: str) -> str:
+def clean_name_procedure(session, tablename: str) -> str:
+    name_patterns = {
+        'first_name': r'^(?:first[_\s]?(?:name|nm)|fore[_\s]?(?:name|nm)|given[_\s]?(?:name|nm))$',
+        'last_name': r'^(?:last[_\s]?(?:name|nm)|sur[_\s]?(?:name|nm)|family[_\s]?(?:name|nm))$',
+        'middle_name': r'^middle[_\s]?(?:name|nm)$'
+    }
+    
+    df = session.table(tablename)
+    column_names = df.columns
+
+    rename_mappings = {}
+
+    for column in column_names:
+        for name_type, pattern in name_patterns.items():
+            if re.match(pattern, column, re.IGNORECASE):
+                rename_mappings[column] = name_type
+
+    for old_name, new_name in rename_mappings.items():
+        df = df.with_column_renamed(old_name, new_name)
+
+    df.write.mode("overwrite").save_as_table(tablename)
+    
+    return "Table cleaned and columns renamed successfully."
+
+$$;
+
+CREATE OR REPLACE PROCEDURE clean_name(tablename STRING)
+RETURNS STRING
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.8'
+PACKAGES = ('pandas', 'snowflake-connector-python')
+HANDLER = 'clean_name_procedure'
+AS
+$$
+import pandas as pd
+import re
+import snowflake.connector
+from snowflake.connector.pandas_tools import write_pandas
+
+def clean_name_procedure(session, tablename: str) -> str:
     # Define regex patterns for name columns
     name_patterns = {
         'first_name': r'^(?:first[_\s]?(?:name|nm)|fore[_\s]?(?:name|nm)|given[_\s]?(?:name|nm))$',
@@ -19,35 +56,23 @@ def clean_names(session: Session, tablename: str) -> str:
         'middle_name': r'^middle[_\s]?(?:name|nm)$'
     }
 
-    # Function to clean individual names
-    def clean_name(name: str) -> str:
-        if name is None:
-            return None
-        # Remove leading and trailing whitespace
-        name = name.strip()
-        # Convert to proper case
-        name = name.title()
-        # Remove special characters (keeping only letters and spaces)
-        name = re.sub(r'[^A-Za-z\s]', '', name)
-        return name
+    # Fetch the table into a pandas DataFrame
+    query = f'SELECT * FROM {tablename}'
+    df = session.sql(query).to_pandas()
 
-    # Read the table provided as a parameter
-    raw_names_df = session.table(tablename)
-
-    # Identify columns matching the name patterns
-    columns_to_clean = {}
-    for col_name in raw_names_df.columns:
+    # Rename columns based on patterns
+    rename_mappings = {}
+    for column in df.columns:
         for name_type, pattern in name_patterns.items():
-            if re.match(pattern, col_name, re.IGNORECASE):
-                columns_to_clean[col_name] = name_type
+            if re.match(pattern, column, re.IGNORECASE):
+                rename_mappings[column] = name_type
 
-    # Apply the cleaning function to the identified columns
-    for col_name in columns_to_clean.keys():
-        raw_names_df = raw_names_df.with_column(col_name, col(col_name).apply(clean_name))
+    # Apply renaming
+    df.rename(columns=rename_mappings, inplace=True)
 
-    # Overwrite the existing table with cleaned data
-    raw_names_df.write.save_as_table(tablename, mode='overwrite')
-
-    return f'Names cleaned successfully! The table "{tablename}" has been overwritten with cleaned data.'
-
+    # Write the cleaned DataFrame back to the Snowflake table
+    session.write_pandas(df, tablename, overwrite=True)
+    
+    return "Table cleaned and columns renamed successfully."
 $$;
+

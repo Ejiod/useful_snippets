@@ -7,7 +7,7 @@ HANDLER = 'clean_columns'
 AS
 $$
 import snowflake.snowpark as snowpark
-from snowflake.snowpark.functions import col, initcap, trim
+from snowflake.snowpark.functions import col, udf
 import re
 
 def clean_columns(session: snowpark.Session, table_name: str) -> str:
@@ -21,12 +21,19 @@ def clean_columns(session: snowpark.Session, table_name: str) -> str:
         'middlename': r'middle[_\-\s]?name|middle[_\-\s]?nm',
         'title': r'title|job[_\-\s]?title|position[_\-\s]?title'
     }
-    
+
+    # Define a UDF to convert strings to title case
+    @udf
+    def to_title_case(value: str) -> str:
+        if value is not None:
+            return value.strip().title()
+        return value
+
     # Function to find and clean columns based on regex patterns
     def clean_and_rename(df, target_column, pattern):
         for col_name in columns:
             if re.match(pattern, col_name, re.IGNORECASE):
-                df = df.withColumn(target_column, initcap(trim(col(col_name))))
+                df = df.withColumn(target_column, to_title_case(col(col_name)))
                 break
         return df
     

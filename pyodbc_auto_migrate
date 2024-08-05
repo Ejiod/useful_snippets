@@ -1,6 +1,59 @@
+-- Create or replace the stored procedure
+CREATE OR REPLACE PROCEDURE CLEAN_NAMES(TABLENAME STRING)
+RETURNS STRING
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.8'
+PACKAGES = ('snowflake-snowpark-python')
+HANDLER = 'clean_names'
+AS
+$$
+from snowflake.snowpark import Session
+from snowflake.snowpark.functions import col
+import re
+
+def clean_names(session: Session, tablename: str) -> str:
+    # Define regex patterns for name columns
+    name_patterns = {
+        'first_name': r'^(?:first[_\s]?(?:name|nm)|fore[_\s]?(?:name|nm)|given[_\s]?(?:name|nm))$',
+        'last_name': r'^(?:last[_\s]?(?:name|nm)|sur[_\s]?(?:name|nm)|family[_\s]?(?:name|nm))$',
+        'middle_name': r'^middle[_\s]?(?:name|nm)$'
+    }
+
+    # Function to clean individual names
+    def clean_name(name: str) -> str:
+        if name is None:
+            return None
+        # Remove leading and trailing whitespace
+        name = name.strip()
+        # Convert to proper case
+        name = name.title()
+        # Remove special characters (keeping only letters and spaces)
+        name = re.sub(r'[^A-Za-z\s]', '', name)
+        return name
+
+    # Read the table provided as a parameter
+    raw_names_df = session.table(tablename)
+
+    # Identify columns matching the name patterns
+    columns_to_clean = {}
+    for col_name in raw_names_df.columns:
+        for name_type, pattern in name_patterns.items():
+            if re.match(pattern, col_name, re.IGNORECASE):
+                columns_to_clean[col_name] = name_type
+
+    # Apply the cleaning function to the identified columns
+    for col_name in columns_to_clean.keys():
+        raw_names_df = raw_names_df.with_column(col_name, col(col_name).apply(clean_name))
+
+    # Overwrite the existing table with cleaned data
+    raw_names_df.write.save_as_table(tablename, mode='overwrite')
+
+    return f'Names cleaned successfully! The table "{tablename}" has been overwritten with cleaned data.'
+
+$$;
 
 
-```sql
+
 CREATE OR REPLACE PROCEDURE clean_existing_names(table_name STRING)
 RETURNS STRING
 LANGUAGE PYTHON
@@ -11,11 +64,13 @@ AS
 $$
 import pandas as pd
 import regex as re
+from snowflake.snowpark.session import Session
+from snowflake.snowpark.functions import col
 
-def clean_existing_names_handler(session, table_name):
+def clean_existing_names_handler(session: Session, table_name: str) -> str:
     # Read the input table
     query = f"SELECT * FROM {table_name}"
-    df = session.table(query).to_pandas()
+    df = session.sql(query).to_pandas()
     
     # Function to clean individual name parts
     def clean_name_part(name):

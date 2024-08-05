@@ -1,36 +1,54 @@
+
+
+```sql
+CREATE OR REPLACE PROCEDURE clean_name(tablename STRING)
+RETURNS STRING
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.8'
+PACKAGES = ('snowflake-snowpark-python', 'pandas')
+HANDLER = 'clean_name_procedure'
+AS
+$$
+import re
 import pandas as pd
-import numpy as np
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
+from snowflake.snowpark.session import Session
 
-# Initialize the sentence transformer model
-model = SentenceTransformer('all-MiniLM-L6-v2')
+def clean_name_procedure(session: Session, tablename: str) -> str:
+    name_patterns = {
+        'first_name': r'^(?:first[_\s]?(?:name|nm)|fore[_\s]?(?:name|nm)|given[_\s]?(?:name|nm))$',
+        'last_name': r'^(?:last[_\s]?(?:name|nm)|sur[_\s]?(?:name|nm)|family[_\s]?(?:name|nm))$',
+        'middle_name': r'^middle[_\s]?(?:name|nm)$'
+    }
+    
+    # Fetch the table into a pandas DataFrame
+    df = session.table(tablename).to_pandas()
+    
+    # Function to clean and format name fields
+    def clean_name(name):
+        if pd.isna(name):
+            return name
+        # Strip leading and trailing spaces, and convert to title case
+        return str(name).strip().title()
+    
+    # Rename columns based on patterns and clean name fields
+    rename_mappings = {}
+    for column in df.columns:
+        for name_type, pattern in name_patterns.items():
+            if re.match(pattern, column, re.IGNORECASE):
+                rename_mappings[column] = name_type
+                df[column] = df[column].apply(clean_name)
+    
+    # Apply renaming
+    df.rename(columns=rename_mappings, inplace=True)
+    
+    # Clean columns with "Title" in their name by making their values title case
+    for column in df.columns:
+        if 'title' in column.lower():
+            df[column] = df[column].apply(lambda x: x.title() if isinstance(x, str) else x)
+    
+    # Write the cleaned DataFrame back to the Snowflake table
+    session.write_pandas(df, tablename, overwrite=True)
+    
+    return "Table cleaned, columns renamed, and names formatted successfully."
+$$;
 
-# Function to generate embeddings using the sentence-transformers model
-def get_embedding(text):
-    return model.encode(text)
-
-# Example DataFrame with text data
-texts = ['Hello, world!', 'How are you?', 'This is an example text.']
-df = pd.DataFrame({'text': texts})
-
-# Generate embeddings for each text in the DataFrame
-df['embedding'] = df['text'].apply(get_embedding)
-
-# Function to calculate cosine similarities
-def calculate_similarities(df, user_input):
-    user_embedding = get_embedding(user_input)
-    embeddings = np.stack(df['embedding'].values)
-    user_embedding_reshaped = np.array(user_embedding).reshape(1, -1)
-    similarities = cosine_similarity(user_embedding_reshaped, embeddings)
-    return similarities[0]
-
-# User input for dynamic similarity search
-user_input = "Your user-specified text here"
-
-# Calculate similarities to user input
-df['similarity_to_user_input'] = calculate_similarities(df, user_input)
-
-# Sort and display texts based on their similarity to the user input
-similar_texts = df.sort_values(by='similarity_to_user_input', ascending=False)
-print(similar_texts)

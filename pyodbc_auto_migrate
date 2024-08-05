@@ -1,7 +1,7 @@
 
 
 ```sql
-CREATE OR REPLACE PROCEDURE clean_existing_names(input_table STRING, output_table STRING)
+CREATE OR REPLACE PROCEDURE clean_existing_names(table_name STRING)
 RETURNS STRING
 LANGUAGE PYTHON
 RUNTIME_VERSION = '3.8'
@@ -12,9 +12,9 @@ $$
 import pandas as pd
 import regex as re
 
-def clean_existing_names_handler(session, input_table, output_table):
+def clean_existing_names_handler(session, table_name):
     # Read the input table
-    query = f"SELECT * FROM {input_table}"
+    query = f"SELECT * FROM {table_name}"
     df = session.table(query).to_pandas()
     
     # Function to clean individual name parts
@@ -47,15 +47,12 @@ def clean_existing_names_handler(session, input_table, output_table):
     for std_name, pattern in name_patterns.items():
         matching_col = find_matching_column(df.columns, pattern)
         if matching_col:
-            df[std_name] = df[matching_col].apply(clean_name_part)
-            if matching_col != std_name:
-                df = df.drop(columns=[matching_col])
+            df[matching_col] = df[matching_col].apply(clean_name_part)
     
-    # Write the result back to Snowflake
-    session.write_pandas(df, output_table, auto_create_table=True, overwrite=True)
+    # Overwrite the original table
+    session.write_pandas(df, table_name, overwrite=True)
     
-    return f"Names cleaned and saved to {output_table}"
+    return f"Names cleaned and table {table_name} has been overwritten"
 
 $$;
-```
 

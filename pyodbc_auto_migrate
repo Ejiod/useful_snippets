@@ -41,3 +41,51 @@ def clean_name_procedure(session: Session, tablename: str) -> str:
     
     return "Table cleaned and columns renamed successfully."
 $$;
+
+
+
+
+
+CREATE OR REPLACE PROCEDURE clean_name(tablename STRING)
+RETURNS STRING
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.8'
+PACKAGES = ('snowflake-snowpark-python', 'pandas')
+HANDLER = 'clean_name_procedure'
+AS
+$$
+import re
+import pandas as pd
+from snowflake.snowpark import Session
+
+def clean_name_procedure(session: Session, tablename: str) -> str:
+    name_patterns = {
+        'first_name': r'^(?:first[_\s]?(?:name|nm)|fore[_\s]?(?:name|nm)|given[_\s]?(?:name|nm))$',
+        'last_name': r'^(?:last[_\s]?(?:name|nm)|sur[_\s]?(?:name|nm)|family[_\s]?(?:name|nm))$',
+        'middle_name': r'^middle[_\s]?(?:name|nm)$'
+    }
+    
+    # Fetch the table into a pandas DataFrame
+    query = f'SELECT * FROM {tablename}'
+    df = session.sql(query).to_pandas()
+    
+    # Rename columns based on patterns
+    rename_mappings = {}
+    for column in df.columns:
+        for name_type, pattern in name_patterns.items():
+            if re.match(pattern, column, re.IGNORECASE):
+                rename_mappings[column] = name_type
+    
+    # Apply renaming
+    df.rename(columns=rename_mappings, inplace=True)
+    
+    # Clean columns with "Title" in their name by making their values title case
+    for column in df.columns:
+        if 'title' in column.lower():
+            df[column] = df[column].map(lambda x: x.title() if isinstance(x, str) else x)
+    
+    # Write the cleaned DataFrame back to the Snowflake table
+    session.write_pandas(df, tablename, overwrite=True)
+    
+    return "Table cleaned and columns renamed successfully."
+$$;

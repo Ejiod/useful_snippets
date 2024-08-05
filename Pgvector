@@ -1,6 +1,3 @@
-
-
-```sql
 CREATE OR REPLACE PROCEDURE clean_name(tablename STRING)
 RETURNS STRING
 LANGUAGE PYTHON
@@ -46,9 +43,11 @@ def clean_name_procedure(session: Session, tablename: str) -> str:
         if 'title' in column.lower():
             df[column] = df[column].apply(lambda x: x.title() if isinstance(x, str) else x)
     
+    # Ensure column names are upper case to avoid identifier issues in Snowflake
+    df.columns = map(str.upper, df.columns)
+    
     # Write the cleaned DataFrame back to the Snowflake table
     session.write_pandas(df, tablename, overwrite=True)
     
     return "Table cleaned, columns renamed, and names formatted successfully."
 $$;
-

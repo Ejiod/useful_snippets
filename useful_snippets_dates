@@ -89,27 +89,35 @@ call clean_and_shift_addresses('addresses')
 
 
 
-
-
-addressline
-address_line
-addressline1
-address_line1
-addressline2
-address_line2
-addressline3
-address_line3
-addline
-add_line
 addline1
 add_line1
+add line1
 addline2
 add_line2
+add line2
 addline3
 add_line3
-AddressLine
-ADDRESS_LINE
-addressLine
-add_Line
-Add_Line1
-addline_2
+add line3
+addressline1
+address_line1
+address line1
+addressline2
+address_line2
+address line2
+addressline3
+address_line3
+address line3
+addline1
+add_line_1
+add line 1
+addressline1
+address_line_1
+address line 1
+AddLine1
+Add Line1
+AddressLine1
+Address Line1
+ADDLINE1
+ADD_LINE1
+ADD LINE1
+

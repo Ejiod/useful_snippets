@@ -85,3 +85,31 @@ $$;
 
 
 call clean_and_shift_addresses('addresses')
+
+
+
+
+
+
+addressline
+address_line
+addressline1
+address_line1
+addressline2
+address_line2
+addressline3
+address_line3
+addline
+add_line
+addline1
+add_line1
+addline2
+add_line2
+addline3
+add_line3
+AddressLine
+ADDRESS_LINE
+addressLine
+add_Line
+Add_Line1
+addline_2

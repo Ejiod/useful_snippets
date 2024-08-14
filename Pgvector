@@ -42,3 +42,17 @@ def clean_columns(session: snowpark.Session, table_name: str) -> str:
     return f"Table {table_name} cleaned and formatted successfully into {cleaned_table_name}."
 
 $$;
+
+
+
+
+
+
+I am writing to formally submit my resignation from my position as -----, effective [Last Working Day, typically two weeks from the date of the letter, unless specified otherwise in your contract]. This decision is driven by personal reasons, as I have decided to return to the United States to focus on saving my marriage and prioritizing my family.
+
+My time at ---- has been incredibly rewarding, and I have greatly appreciated the opportunity to work on significant projects, such as the development of a Python-based deep learning model on AWS SageMaker and the migration of legacy systems to Snowflake. These experiences have been instrumental in my professional growth, and I will always value the knowledge and skills I have gained during my tenure here.
+
+I am committed to ensuring a smooth transition and will do everything I can to support the team during this period. Please let me know how I can assist in handing over my responsibilities.
+
+Thank you for your understanding and for the support I have received throughout my time at -------. I wish the team continued success and growth in the future.
+

@@ -88,36 +88,15 @@ call clean_and_shift_addresses('addresses')
 
 
 
+import boto3
 
-addline1
-add_line1
-add line1
-addline2
-add_line2
-add line2
-addline3
-add_line3
-add line3
-addressline1
-address_line1
-address line1
-addressline2
-address_line2
-address line2
-addressline3
-address_line3
-address line3
-addline1
-add_line_1
-add line 1
-addressline1
-address_line_1
-address line 1
-AddLine1
-Add Line1
-AddressLine1
-Address Line1
-ADDLINE1
-ADD_LINE1
-ADD LINE1
+# Initialize a session using boto3
+s3 = boto3.client('s3')
 
+# Define the file and S3 bucket details
+parquet_file_path = 'path/to/your/file.parquet'  # Local path to the Parquet file
+s3_bucket = 'your-bucket-name'
+s3_key = 'file.parquet'  # This uploads directly to the root of the bucket
+
+# Upload the file to S3
+s3.upload_file(parquet_file_path, s3_bucket, s3_key)

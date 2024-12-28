@@ -1,1 +1,58 @@
+CREATE OR REPLACE PROCEDURE clean_table_columns(table_name STRING)
+RETURNS STRING
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.8'
+PACKAGES = ('snowflake-snowpark-python', 'pandas')
+HANDLER = 'clean_columns'
+AS
+$$
+import snowflake.snowpark as snowpark
+import pandas as pd
+
+def clean_columns(session: snowpark.Session, table_name: str) -> str:
+    # Load the table into a pandas DataFrame
+    df = session.table(table_name).to_pandas()
+    
+    # Define regex patterns for possible column names
+    column_patterns = {
+        'firstname': r'first[_\-\s]?name|first[_\-\s]?nm|forname|given[_\-\s]?name',
+        'lastname': r'last[_\-\s]?name|last[_\-\s]?nm|surname',
+        'middlename': r'middle[_\-\s]?name|middle[_\-\s]?nm',
+        'title': r'title|job[_\-\s]?title|position[_\-\s]?title'
+    }
+
+    # Function to clean and rename columns based on regex patterns
+    def clean_and_rename(df, target_column, pattern):
+        for col_name in df.filter(regex=pattern, axis=1).columns:
+            df[target_column] = df[col_name].str.strip().str.title()
+            break
+        return df
+    
+    # Clean and format the columns dynamically
+    for target_column, pattern in column_patterns.items():
+        df = clean_and_rename(df, target_column, pattern)
+    
+    # Convert the cleaned pandas DataFrame back to a Snowpark DataFrame
+    cleaned_df = session.create_dataframe(df)
+    
+    # Write the cleaned data back to the table
+    cleaned_table_name = f"{table_name}_cleaned"
+    cleaned_df.write.mode('overwrite').save_as_table(cleaned_table_name)
+    
+    return f"Table {table_name} cleaned and formatted successfully into {cleaned_table_name}."
+
+$$;
+
+
+
+
+
+
+I am writing to formally submit my resignation from my position as -----, effective [Last Working Day, typically two weeks from the date of the letter, unless specified otherwise in your contract]. This decision is driven by personal reasons, as I have decided to return to the United States to focus on saving my marriage and prioritizing my family.
+
+My time at ---- has been incredibly rewarding, and I have greatly appreciated the opportunity to work on significant projects, such as the development of a Python-based deep learning model on AWS SageMaker and the migration of legacy systems to Snowflake. These experiences have been instrumental in my professional growth, and I will always value the knowledge and skills I have gained during my tenure here.
+
+I am committed to ensuring a smooth transition and will do everything I can to support the team during this period. Please let me know how I can assist in handing over my responsibilities.
+
+Thank you for your understanding and for the support I have received throughout my time at -------. I wish the team continued success and growth in the future.
 
